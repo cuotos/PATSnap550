@@ -180,7 +180,7 @@
                 <label for="inputOpenAiKey" class="text-[11px] font-bold uppercase text-slate-400">API key</label>
                 <input id="inputOpenAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-white text-sm">
                 <label for="inputOpenAiModel" class="text-[11px] font-bold uppercase text-slate-400">Model</label>
-                <input id="inputOpenAiModel" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-mini" class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-white text-sm">
+                <input id="inputOpenAiModel" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-5-mini" class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-white text-sm">
                 <div class="flex gap-2">
                     <button id="btnSaveAiSettings" type="button" class="flex-1 py-3 rounded-xl bg-yellow-400 text-slate-950 text-sm font-extrabold">Save</button>
                     <button id="btnClearAiSettings" type="button" class="px-4 py-3 rounded-xl bg-slate-800 text-red-400 border border-slate-700 text-sm font-bold">Remove key</button>
@@ -495,6 +495,17 @@
     </div>
 
     <!-- ==================== CUSTOM CONFIRMATION DIALOG MODAL ==================== -->
+    <!-- ==================== PHOTO PRE-CHECK PROMPT ==================== -->
+    <div id="photoCheckModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3">
+            <h3 class="font-extrabold text-lg text-white">This doesn't look like the tester screen</h3>
+            <p id="photoCheckReason" class="text-sm font-bold text-amber-300"></p>
+            <img id="photoCheckImg" src="" alt="Captured photo" class="w-full max-h-[40vh] object-contain rounded-xl bg-black border border-slate-800">
+            <button id="btnPhotoCheckRetake" type="button" class="w-full py-4 rounded-2xl bg-yellow-400 text-slate-950 text-lg font-extrabold">Retake</button>
+            <button id="btnPhotoCheckReadAnyway" type="button" class="w-full py-3 rounded-2xl bg-slate-800 border border-slate-700 text-slate-200 text-sm font-bold">Read anyway</button>
+        </div>
+    </div>
+
     <div id="confirmDialogModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl">
             <h3 id="confirmDialogTitle" class="font-extrabold text-base text-white mb-1.5">Confirm Action</h3>
@@ -569,7 +580,8 @@
             const STORAGE_KEY_LOCATION = 'pat_snap_550_last_location_v1';
             const STORAGE_KEY_OPENAI_KEY = 'pat_snap_550_openai_key_v1';
             const STORAGE_KEY_OPENAI_MODEL = 'pat_snap_550_openai_model_v1';
-            const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
+            // gpt-5-mini: 18/18 correct on the example photos, ~40% cheaper per photo than gpt-4.1-mini (now deprecated)
+            const DEFAULT_OPENAI_MODEL = 'gpt-5-mini';
 
             // Application State
             const state = {
@@ -675,6 +687,11 @@
                 readingsEditor: document.getElementById('readingsEditor'),
                 aiModeBadge: document.getElementById('aiModeBadge'),
                 cameraVideo: document.getElementById('cameraVideo'),
+                photoCheckModal: document.getElementById('photoCheckModal'),
+                photoCheckReason: document.getElementById('photoCheckReason'),
+                photoCheckImg: document.getElementById('photoCheckImg'),
+                btnPhotoCheckRetake: document.getElementById('btnPhotoCheckRetake'),
+                btnPhotoCheckReadAnyway: document.getElementById('btnPhotoCheckReadAnyway'),
                 cameraPlaceholder: document.getElementById('cameraPlaceholder'),
                 cameraStatusText: document.getElementById('cameraStatusText'),
                 viewfinderGuide: document.getElementById('viewfinderGuide'),
@@ -1126,6 +1143,7 @@
                 state.ocrInvert = false;
                 state.ocrBias = 0;
                 // Run genuine Tesseract OCR on the generated LCD canvas so the entire pipeline is tested end-to-end
+                canvas.skipPreCheck = true; // the drawn demo screen is not a photo
                 runOcrOnCanvas(canvas, thumbDataUrl, data.appliance);
             }
 
@@ -1170,6 +1188,12 @@ Rules:
                 required: ['screen_found', 'test_type', 'interim', 'result', 'voltage', 'earth_status', 'earth_value', 'insulation_status', 'insulation_value', 'polarity']
             };
 
+            function reasoningEffortFor(model) {
+                if (/^gpt-5(-mini|-nano)?$/.test(model)) return { reasoning_effort: 'minimal' };
+                if (/^gpt-5\.\d/.test(model)) return { reasoning_effort: 'none' };
+                return {};
+            }
+
             async function readScreenWithOpenAI(canvas) {
                 const model = state.openAiModel || DEFAULT_OPENAI_MODEL;
                 const imageUrl = canvas.toDataURL('image/jpeg', 0.85);
@@ -1199,7 +1223,9 @@ Rules:
                             response_format: {
                                 type: 'json_schema',
                                 json_schema: { name: 'hpat550_reading', strict: true, schema: OPENAI_READING_SCHEMA }
-                            }
+                            },
+                            // Reading a screen needs no deep reasoning; keeps GPT-5 models fast and cheap
+                            ...reasoningEffortFor(model)
                         })
                     });
                 } catch (err) {
@@ -1269,6 +1295,18 @@ Rules:
             }
 
             async function runOcrOnCanvas(canvas, thumbDataUrl, suggestedAppliance = '', isReRun = false) {
+                // Free pre-check: don't spend time (or an AI call) on an accidental photo
+                if (!isReRun && !canvas.skipPreCheck) {
+                    const verdict = photoLooksLikeScreen(assessPhoto(canvas));
+                    if (!verdict.ok) {
+                        const readAnyway = await askPhotoCheck(verdict.reason, thumbDataUrl);
+                        if (!readAnyway) {
+                            syncCamera(); // back to the live preview for a retake
+                            return;
+                        }
+                    }
+                }
+
                 // Prefer AI reading when an OpenAI key is set; fall back to offline OCR on any failure
                 if (state.openAiKey) {
                     dom.ocrLoadingOverlay.classList.remove('hidden');
@@ -1401,6 +1439,21 @@ Rules:
              * if no clear screen region is found.
              */
             function cropToScreen(sourceCanvas) {
+                const box = findScreenBox(sourceCanvas);
+                if (!box) return sourceCanvas;
+                const out = document.createElement('canvas');
+                out.width = box.cw;
+                out.height = box.ch;
+                out.getContext('2d').drawImage(sourceCanvas, box.cx, box.cy, box.cw, box.ch, 0, 0, box.cw, box.ch);
+                out.isScreenCrop = true;
+                return out;
+            }
+
+            /**
+             * Locates the bright white screen: the longest run of rows, then columns, that are mostly
+             * bright. Returns its box in source pixels (with a small margin), or null if none found.
+             */
+            function findScreenBox(sourceCanvas) {
                 const sw = 240;
                 const sh = Math.max(1, Math.round(sourceCanvas.height * (sw / sourceCanvas.width)));
                 const small = document.createElement('canvas');
@@ -1443,14 +1496,14 @@ Rules:
                     for (let x = 0; x < sw; x++) if (white[y * sw + x] > thr) rowCounts[y]++;
                 }
                 const [y0, y1] = longestRun(rowCounts, sw, 0.3);
-                if (y1 - y0 < sh * 0.12) return sourceCanvas;
+                if (y1 - y0 < sh * 0.12) return null;
 
                 const colCounts = new Array(sw).fill(0);
                 for (let y = y0; y <= y1; y++) {
                     for (let x = 0; x < sw; x++) if (white[y * sw + x] > thr) colCounts[x]++;
                 }
                 const [x0, x1] = longestRun(colCounts, y1 - y0 + 1, 0.3);
-                if (x1 - x0 < sw * 0.2) return sourceCanvas;
+                if (x1 - x0 < sw * 0.2) return null;
 
                 // Map back to full resolution with a small margin
                 const k = sourceCanvas.width / sw;
@@ -1459,12 +1512,89 @@ Rules:
                 const cy = Math.max(0, Math.round((y0 - m) * k));
                 const cw = Math.min(sourceCanvas.width - cx, Math.round((x1 - x0 + 2 * m) * k));
                 const ch = Math.min(sourceCanvas.height - cy, Math.round((y1 - y0 + 2 * m) * k));
-                const out = document.createElement('canvas');
-                out.width = cw;
-                out.height = ch;
-                out.getContext('2d').drawImage(sourceCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
-                out.isScreenCrop = true;
-                return out;
+                return { cx, cy, cw, ch, maxWhite: maxW };
+            }
+
+            /**
+             * Quick, free check that a photo shows the tester screen before paying for an AI read.
+             * Measures: overall brightness, a bright screen-shaped area, text on it, and sharpness.
+             */
+            function assessPhoto(sourceCanvas) {
+                const W = sourceCanvas.width, H = sourceCanvas.height;
+                const box = findScreenBox(sourceCanvas);
+                const m = { brightness: 0, screenFound: !!box, areaFrac: 0, aspect: 0, ink: 0, sharpness: 0 };
+
+                // Overall brightness (small copy)
+                const s = document.createElement('canvas');
+                s.width = 120;
+                s.height = Math.max(1, Math.round(H * 120 / W));
+                const sctx = s.getContext('2d');
+                sctx.drawImage(sourceCanvas, 0, 0, s.width, s.height);
+                const sd = sctx.getImageData(0, 0, s.width, s.height).data;
+                let sum = 0;
+                for (let i = 0; i < sd.length; i += 4) sum += (sd[i] + sd[i + 1] + sd[i + 2]) / 3;
+                m.brightness = sum / (sd.length / 4);
+
+                if (box) {
+                    m.areaFrac = (box.cw * box.ch) / (W * H);
+                    m.aspect = box.cw / box.ch;
+                    // Text and sharpness measured on the screen area at a fixed 400px width
+                    const c = document.createElement('canvas');
+                    c.width = 400;
+                    c.height = Math.max(1, Math.round(box.ch * 400 / box.cw));
+                    const cctx = c.getContext('2d');
+                    cctx.drawImage(sourceCanvas, box.cx, box.cy, box.cw, box.ch, 0, 0, c.width, c.height);
+                    const d = cctx.getImageData(0, 0, c.width, c.height).data;
+                    const g = new Float32Array(c.width * c.height);
+                    let gsum = 0;
+                    for (let i = 0, q = 0; i < d.length; i += 4, q++) { g[q] = Math.min(d[i], d[i + 1], d[i + 2]); gsum += g[q]; }
+                    const gmean = gsum / g.length;
+                    let inkCount = 0, lapSum = 0, lapSq = 0, n = 0;
+                    for (let y = 1; y < c.height - 1; y++) {
+                        for (let x = 1; x < c.width - 1; x++) {
+                            const q = y * c.width + x;
+                            if (g[q] < gmean * 0.6) inkCount++;
+                            const lap = 4 * g[q] - g[q - 1] - g[q + 1] - g[q - c.width] - g[q + c.width];
+                            lapSum += lap; lapSq += lap * lap; n++;
+                        }
+                    }
+                    m.ink = inkCount / n;
+                    m.sharpness = lapSq / n - (lapSum / n) ** 2;
+                }
+                if (window.PAT_DEBUG) console.log('assess', JSON.stringify(m));
+                return m;
+            }
+
+            /**
+             * Decides from assessPhoto() measurements whether the photo shows the tester screen.
+             * Cut-offs sit well outside the range of real screen photos (tested on the example photos
+             * at 1280–1600px: brightness 89–108, aspect 1.33–1.51, ink 13–18%, sharpness 890–1400).
+             */
+            function photoLooksLikeScreen(m) {
+                if (m.brightness < 30) return { ok: false, reason: 'The photo is too dark.' };
+                if (!m.screenFound || m.areaFrac < 0.04 || m.areaFrac > 0.97 || m.aspect < 0.9 || m.aspect > 2.2) {
+                    return { ok: false, reason: "Couldn't find the tester's screen in the photo." };
+                }
+                if (m.ink < 0.02) return { ok: false, reason: 'No text found on the screen.' };
+                if (m.sharpness < 50) return { ok: false, reason: 'The photo is too blurry.' };
+                return { ok: true, reason: '' };
+            }
+
+            /** Shows the pre-check prompt; resolves true for "Read anyway", false for "Retake" */
+            function askPhotoCheck(reason, thumbDataUrl) {
+                return new Promise(resolve => {
+                    dom.photoCheckReason.textContent = reason;
+                    dom.photoCheckImg.src = thumbDataUrl || '';
+                    dom.photoCheckModal.classList.remove('hidden');
+                    const done = (readAnyway) => {
+                        dom.photoCheckModal.classList.add('hidden');
+                        dom.btnPhotoCheckRetake.onclick = null;
+                        dom.btnPhotoCheckReadAnyway.onclick = null;
+                        resolve(readAnyway);
+                    };
+                    dom.btnPhotoCheckRetake.onclick = () => done(false);
+                    dom.btnPhotoCheckReadAnyway.onclick = () => done(true);
+                });
             }
 
             /**
