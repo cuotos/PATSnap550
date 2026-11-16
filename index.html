@@ -654,6 +654,7 @@
                 mediaStream: null,
                 ocrInvert: false,
                 ocrBias: 0,
+                verifyHistoryPushed: false,
                 liveScan: {
                     active: false,
                     busy: false,
@@ -973,13 +974,7 @@
              * Captures the region inside the yellow HPAT550 viewfinder reticle from live video
              */
             function captureFromLiveVideo() {
-                if (!state.mediaStream || dom.cameraVideo.readyState < 2) {
-                    // No live stream (blocked / unsupported): use the phone's native camera
-                    dom.filePhotoInput.click();
-                    return;
-                }
-
-                // If Live Auto-Scan already has a fresh reading locked in, open verification immediately
+                // If Live Read is running and has a reading, use it ("USE THIS READING")
                 if (state.liveScan.active && state.liveScan.lastParsed && state.liveScan.lastFrameCanvas) {
                     const snapshotParsed = { ...state.liveScan.lastParsed };
                     const snapshotCanvas = state.liveScan.lastFrameCanvas;
@@ -995,12 +990,10 @@
                     return;
                 }
 
+                // Otherwise open the phone's own camera: a full-resolution photo reads far more
+                // reliably than a frame grabbed from the (much lower resolution) live video.
                 stopLiveAutoScan();
-                const canvas = grabReticleCanvas();
-                const thumbDataUrl = createCompressedThumbnail(canvas);
-                state.ocrInvert = false;
-                state.ocrBias = 0;
-                runOcrOnCanvas(canvas, thumbDataUrl);
+                dom.filePhotoInput.click();
             }
 
             /**
@@ -1066,7 +1059,7 @@
 
                     if (!state.liveScan.active) return;
 
-                    const parsed = parseHpat550OcrText(text);
+                    const parsed = parseHpat550OcrText(text, detectStatusByColour(frozenCopy));
                     parsed.rawOcr = text;
                     state.liveScan.lastParsed = parsed;
                     state.liveScan.lastFrameCanvas = frozenCopy;
@@ -1329,7 +1322,7 @@
                     await worker.terminate();
 
                     dom.ocrProgressBar.style.width = '100%';
-                    const parsed = parseHpat550OcrText(text);
+                    const parsed = parseHpat550OcrText(text, detectStatusByColour(canvas));
                     if (suggestedAppliance) {
                         parsed.suggestedAppliance = suggestedAppliance;
                     }
@@ -1434,7 +1427,72 @@
                 out.width = cw;
                 out.height = ch;
                 out.getContext('2d').drawImage(sourceCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+                out.isScreenCrop = true;
                 return out;
+            }
+
+            /**
+             * Detects the HPAT550's big green PASS / red FAIL word by colour, independent of OCR.
+             * Looks for coloured blobs that are tall (≥ 11% of the screen height) — the small
+             * tick / cross icons next to each reading are much shorter and are ignored.
+             * Returns 'PASS', 'FAIL' or '' (none found / no screen located).
+             */
+            function detectStatusByColour(sourceCanvas) {
+                const screen = cropToScreen(sourceCanvas);
+                if (!screen.isScreenCrop) return '';
+
+                const w = 200;
+                const h = Math.max(1, Math.round(screen.height * (w / screen.width)));
+                const c = document.createElement('canvas');
+                c.width = w;
+                c.height = h;
+                const ctx = c.getContext('2d');
+                ctx.drawImage(screen, 0, 0, w, h);
+                const d = ctx.getImageData(0, 0, w, h).data;
+
+                // Classify pixels: 1 = green, 2 = red, 0 = other. Colour is judged relative to the
+                // pixel's own other channels, so a warm/orange room light doesn't count as red.
+                const cls = new Uint8Array(w * h);
+                for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+                    const r = d[i], g = d[i + 1], b = d[i + 2];
+                    if (g > 90 && g - r > 45 && g - b > 45) cls[p] = 1;
+                    else if (r > 120 && r - g > 80 && r - b > 60) cls[p] = 2;
+                }
+
+                // Connected components (4-way); track the tallest blob of each colour
+                const seen = new Uint8Array(w * h);
+                const tallest = { 1: 0, 2: 0 };
+                const stack = [];
+                for (let start = 0; start < w * h; start++) {
+                    const col = cls[start];
+                    if (!col || seen[start]) continue;
+                    let minY = h, maxY = 0, count = 0;
+                    stack.push(start);
+                    seen[start] = 1;
+                    while (stack.length) {
+                        const p = stack.pop();
+                        const x = p % w, y = (p - x) / w;
+                        count++;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                        const nbrs = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1];
+                        for (const n of nbrs) {
+                            if (n >= 0 && !seen[n] && cls[n] === col) {
+                                seen[n] = 1;
+                                stack.push(n);
+                            }
+                        }
+                    }
+                    if (count >= 8) tallest[col] = Math.max(tallest[col], (maxY - minY + 1) / h);
+                }
+
+                const minHeight = 0.11;
+                const isPass = tallest[1] >= minHeight;
+                const isFail = tallest[2] >= minHeight;
+                if (window.PAT_DEBUG) console.log('colour status', JSON.stringify(tallest));
+                if (isPass && !isFail) return 'PASS';
+                if (isFail && !isPass) return 'FAIL';
+                return '';
             }
 
             function preprocessForOcr(sourceCanvas, options = { invert: false, thresholdBias: 0 }) {
@@ -1543,7 +1601,7 @@
              * Values are only taken from their own labelled line, so nothing lands in the wrong field.
              * `found` records what was genuinely read; anything else is shown as "Not read".
              */
-            function parseHpat550OcrText(rawText) {
+            function parseHpat550OcrText(rawText, colourStatus = '') {
                 const upper = (rawText || '').toUpperCase().replace(/\r/g, '\n');
                 const lines = upper.split('\n').map(l => l.trim()).filter(Boolean);
                 const found = { status: false, testType: false, voltage: false, insulation: false, earth: false, polarity: false };
@@ -1561,7 +1619,11 @@
                 let interim = /INTERIM|INTER1M/.test(upper);
                 let status = '';
                 if (!interim) {
-                    if (/\bFA[I1L]L\b/.test(upper)) {
+                    if (colourStatus) {
+                        // Big green/red word detected by colour (most reliable)
+                        status = colourStatus;
+                        found.status = true;
+                    } else if (/\bFA[I1L]L\b/.test(upper)) {
                         status = 'FAIL';
                         found.status = true;
                     } else if (/\bP[A4]SS\b/.test(upper)) {
@@ -1583,6 +1645,22 @@
                 } else if (/CLASS\s*(I|L|1)\b/.test(upper)) {
                     testType = 'Class I';
                     found.testType = true;
+                } else {
+                    // Title not read: infer from which result lines are on screen
+                    //   Polarity line -> IEC lead; Earth line -> Class I; Insulation only -> Class II
+                    const hasPol = lines.some(l => /POLA|ARITY/.test(l));
+                    const hasEarth = lines.some(l => /EARTH|[A-Z]ARTH|EA[RT]TH|\bCONT?\b/.test(l));
+                    const hasIns = lines.some(l => /SULAT|INSUL|NSUL/.test(l));
+                    if (hasPol) {
+                        testType = 'Lead';
+                        found.testType = true;
+                    } else if (hasEarth) {
+                        testType = 'Class I';
+                        found.testType = true;
+                    } else if (hasIns) {
+                        testType = 'Class II';
+                        found.testType = true;
+                    }
                 }
 
                 // 3. Insulation test voltage (top-left of screen)
@@ -1724,6 +1802,12 @@
                 markNeedsCheck(dom.outcomeBlock, !found.status);
                 markNeedsCheck(dom.inputVoltage, !found.voltage);
 
+                // Add a history entry so swipe-back / Android back closes (discards) this scan
+                // instead of leaving the app. Skipped on Re-Read, when the modal is already open.
+                if (dom.verifyModal.classList.contains('hidden') && !state.verifyHistoryPushed) {
+                    history.pushState({ patVerify: true }, '');
+                    state.verifyHistoryPushed = true;
+                }
                 dom.verifyModal.classList.remove('hidden');
                 // Scroll to the top so the photo and readings are seen first (no auto-focus: keyboard would hide them)
                 dom.verifyForm.scrollTop = 0;
@@ -1820,6 +1904,11 @@
 
             function closeVerificationModal() {
                 dom.verifyModal.classList.add('hidden');
+                // Remove the history entry we added on open (the popstate handler ignores this)
+                if (state.verifyHistoryPushed) {
+                    state.verifyHistoryPushed = false;
+                    history.back();
+                }
             }
 
             function setModalOutcomeUI(outcome) {
@@ -2143,6 +2232,15 @@
             }
 
             function bindEvents() {
+                // Swipe-back / hardware back while checking a scan = discard it
+                window.addEventListener('popstate', () => {
+                    if (state.verifyHistoryPushed && !dom.verifyModal.classList.contains('hidden')) {
+                        state.verifyHistoryPushed = false;
+                        dom.verifyModal.classList.add('hidden');
+                        showToast('Scan discarded.', 'info');
+                    }
+                });
+
                 // Bottom Navigation
                 dom.navBtnScan.addEventListener('click', () => switchTab('scan'));
                 dom.navBtnLog.addEventListener('click', () => switchTab('log'));
