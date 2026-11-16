@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PAT Snap 550 | Martindale HPAT550 Optical Logger</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tesseract.js v5 for Client-Side OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        martindale: {
+                            yellow: '#FACC15',
+                            yellowHover: '#EAB308',
+                            dark: '#0F172A',
+                            card: '#1E293B',
+                            border: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom animations and print styles */
+        @keyframes scanline {
+            0% { top: 4%; opacity: 0.2; }
+            50% { opacity: 1; }
+            100% { top: 94%; opacity: 0.2; }
+        }
+        .animate-scanline {
+            animation: scanline 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+        }
+        
+        /* Hide scrollbars cleanly where needed */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Print / Formal PAT Register Certificate Styling */
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #0f172a !important;
+                font-size: 11pt;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .print-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 1rem;
+            }
+            .print-table th, .print-table td {
+                border: 1px solid #cbd5e1;
+                padding: 8px 10px;
+                text-align: left;
+                font-size: 9.5pt;
+            }
+            .print-table th {
+                background-color: #f1f5f9 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col selection:bg-yellow-400 selection:text-slate-950">
+
+    <!-- ==================== HEADER (NO PRINT) ==================== -->
+    <header class="no-print sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 shadow-lg">
+        <div class="max-w-3xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <!-- Martindale-inspired rugged badge -->
+                <div class="w-10 h-10 rounded-xl bg-yellow-400 text-slate-950 flex items-center justify-center font-extrabold text-lg shadow-md shadow-yellow-400/20 border-2 border-yellow-300">
+                    550
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-extrabold text-lg tracking-tight text-white">PAT Snap <span class="text-yellow-400">550</span></h1>
+                        <span class="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-yellow-400 border border-slate-700">IET CoP 5th Ed</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Martindale HPAT550 Optical Screen Logger (UK)</p>
+                </div>
+            </div>
+
+            <!-- Next Asset Tag Indicator -->
+            <div class="text-right">
+                <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Next Tag</span>
+                <span id="headerNextAssetId" class="font-mono text-sm font-bold text-yellow-400 bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-700">PAT-001</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== TOAST NOTIFICATION ==================== -->
+    <div id="toastContainer" class="no-print fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none flex flex-col gap-2"></div>
+
+    <!-- ==================== MAIN CONTENT AREA ==================== -->
+    <main class="no-print flex-1 max-w-3xl w-full mx-auto pb-24">
+
+        <!-- ==================== TAB 1: SCAN SCREEN VIEW ==================== -->
+        <section id="tabScan" class="p-4 flex flex-col gap-4">
+            
+            <!-- Camera / Viewfinder Card -->
+            <div class="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-slate-900 rounded-2xl overflow-hidden border-2 border-slate-800 shadow-2xl flex items-center justify-center">
+                
+                <!-- Live Camera Video Stream -->
+                <video id="cameraVideo" class="w-full h-full object-cover hidden" autoplay playsinline muted></video>
+                
+                <!-- Fallback / Inactive Camera Placeholder -->
+                <div id="cameraPlaceholder" class="flex flex-col items-center justify-center text-center p-6 max-w-sm">
+                    <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-3 text-yellow-400">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <h2 id="cameraStatusTitle" class="font-bold text-base text-white mb-1">Ready to Scan HPAT550 LCD</h2>
+                    <p id="cameraStatusDesc" class="text-xs text-slate-400 mb-4 leading-relaxed">
+                        Align the Martindale HPAT550 colour display inside the yellow target box, or use a photo / demo scan below.
+                    </p>
+                    <button id="btnStartCamera" type="button" class="px-5 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.98] text-slate-950 font-bold text-sm shadow-lg shadow-yellow-400/20 transition flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                        Enable Rear Camera
+                    </button>
+                </div>
+
+                <!-- Precision Martindale HPAT550 LCD Alignment Overlay -->
+                <div id="viewfinderOverlay" class="pointer-events-none absolute inset-0 flex items-center justify-center p-4 sm:p-8">
+                    <!-- Darkened surrounding vignette -->
+                    <div id="reticleBox" class="relative w-[84%] max-w-[360px] aspect-[4/3] rounded-xl border-2 border-yellow-400/80 shadow-[0_0_0_9999px_rgba(2,6,23,0.62)] transition-all">
+                        
+                        <!-- Glowing Corner Brackets -->
+                        <div class="absolute -top-1 -left-1 w-7 h-7 border-t-4 border-l-4 border-yellow-400 rounded-tl-lg"></div>
+                        <div class="absolute -top-1 -right-1 w-7 h-7 border-t-4 border-r-4 border-yellow-400 rounded-tr-lg"></div>
+                        <div class="absolute -bottom-1 -left-1 w-7 h-7 border-b-4 border-l-4 border-yellow-400 rounded-bl-lg"></div>
+                        <div class="absolute -bottom-1 -right-1 w-7 h-7 border-b-4 border-r-4 border-yellow-400 rounded-br-lg"></div>
+
+                        <!-- Top Header Badge inside Reticle -->
+                        <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-yellow-400 text-slate-950 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow flex items-center gap-1.5 whitespace-nowrap">
+                            <span id="liveScanPulseDot" class="hidden w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
+                            <span id="reticleHeaderLabel">Martindale HPAT550 LCD</span>
+                        </div>
+
+                        <!-- Internal Alignment Guides / Real-Time Live OCR HUD -->
+                        <div class="w-full h-full flex flex-col justify-between p-3 text-[10px] font-mono text-yellow-300/70">
+                            <!-- Top Status Bar Guide (PASS / FAIL) -->
+                            <div id="hudStatusBar" class="border border-dashed border-emerald-400/50 bg-slate-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors">
+                                <span id="hudStatusText" class="font-bold text-slate-200">STATUS: PASS / FAIL</span>
+                                <span id="hudClassText" class="font-bold text-yellow-300">CLASS I / II / LEAD</span>
+                            </div>
+
+                            <!-- Middle Readings Guide (Earth Continuity & Insulation) -->
+                            <div class="grid grid-cols-2 gap-2 my-auto">
+                                <div class="border border-dashed border-yellow-400/50 bg-slate-950/65 backdrop-blur-[2px] rounded-lg p-1.5 text-center">
+                                    <span class="block text-[9px] text-slate-300/90">EARTH BOND</span>
+                                    <span id="hudEarthValue" class="font-extrabold text-sm sm:text-base text-yellow-300 tracking-tight">0.00 Ω</span>
+                                </div>
+                                <div class="border border-dashed border-yellow-400/50 bg-slate-950/65 backdrop-blur-[2px] rounded-lg p-1.5 text-center">
+                                    <span class="block text-[9px] text-slate-300/90">INSULATION</span>
+                                    <span id="hudInsValue" class="font-extrabold text-sm sm:text-base text-yellow-300 tracking-tight">&gt;99.9 MΩ</span>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Guide -->
+                            <div id="hudFooterTip" class="text-center text-[9px] text-slate-200 bg-slate-950/65 rounded py-0.5 px-2 truncate">
+                                Keep screen flat &amp; avoid glare
+                            </div>
+                        </div>
+
+                        <!-- Animated Laser Scanline -->
+                        <div class="animate-scanline absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_12px_#facc15]"></div>
+                    </div>
+                </div>
+
+                <!-- OCR Processing Overlay Spinner -->
+                <div id="ocrLoadingOverlay" class="hidden absolute inset-0 z-20 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                    <div class="w-14 h-14 rounded-full border-4 border-slate-700 border-t-yellow-400 animate-spin mb-4"></div>
+                    <h3 class="font-bold text-base text-white mb-1">Reading HPAT550 Screen...</h3>
+                    <p id="ocrProgressText" class="text-xs font-mono text-yellow-400 mb-3">Initialising OCR engine...</p>
+                    <div class="w-56 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div id="ocrProgressBar" class="h-full bg-yellow-400 transition-all duration-200" style="width: 15%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Primary Capture Controls -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- Capture Frame / Lock Reading Button (Live Video) -->
+                <div class="col-span-1 sm:col-span-2 flex gap-2">
+                    <button id="btnCaptureFrame" type="button" disabled class="flex-1 py-4 px-4 rounded-2xl bg-yellow-400 disabled:bg-slate-800 disabled:text-slate-500 hover:bg-yellow-300 active:scale-[0.99] text-slate-950 font-extrabold text-sm sm:text-base shadow-lg shadow-yellow-400/15 transition flex items-center justify-center gap-2.5 cursor-pointer disabled:cursor-not-allowed">
+                        <span class="w-3.5 h-3.5 rounded-full bg-slate-950/20 flex items-center justify-center shrink-0">
+                            <span class="w-2 h-2 rounded-full bg-current"></span>
+                        </span>
+                        <span id="btnCaptureFrameLabel">SNAP &amp; SCAN SCREEN</span>
+                    </button>
+
+                    <!-- Real-Time Continuous QR-Style Live OCR Toggle -->
+                    <button id="btnToggleLiveScan" type="button" disabled title="Continuously read HPAT550 numbers in real time" class="px-4 py-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-xs sm:text-sm transition flex flex-col items-center justify-center leading-tight shrink-0 cursor-pointer disabled:cursor-not-allowed">
+                        <span id="liveScanToggleTitle">LIVE READ</span>
+                        <span id="liveScanToggleState" class="text-[10px] font-mono text-slate-400">OFF</span>
+                    </button>
+                </div>
+
+                <!-- Fallback File Upload / Native Camera Photo -->
+                <label class="py-3.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 active:scale-[0.99] border border-slate-700 text-white font-semibold text-sm transition flex items-center justify-center gap-2 cursor-pointer text-center">
+                    <svg class="w-5 h-5 text-yellow-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Upload / Take Photo</span>
+                    <input id="filePhotoInput" type="file" accept="image/*" capture="environment" class="hidden">
+                </label>
+
+                <!-- Demo Scan Button -->
+                <div class="relative flex">
+                    <button id="btnDemoScan" type="button" class="flex-1 py-3.5 px-4 rounded-l-xl bg-slate-800 hover:bg-slate-750 active:scale-[0.99] border border-slate-700 text-emerald-400 font-semibold text-sm transition flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                        <span>Demo Scan (HPAT550)</span>
+                    </button>
+                    <select id="demoPresetSelect" aria-label="Demo Scenario" class="rounded-r-xl bg-slate-800 border-y border-r border-slate-700 text-xs text-slate-300 px-2 focus:outline-none focus:border-yellow-400">
+                        <option value="pass_class1">Class I Pass</option>
+                        <option value="pass_class2">Class II Pass</option>
+                        <option value="pass_lead">IEC Lead Pass</option>
+                        <option value="fail_earth">Earth Fail</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Quick Batch Context Card -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Current Batch Location</span>
+                    <p id="currentBatchLocationDisplay" class="text-sm font-bold text-white mt-0.5">Not set (will prompt on scan)</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btnQuickSetLocation" type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-yellow-400 border border-slate-700 transition">
+                        Set Room / Area
+                    </button>
+                </div>
+            </div>
+
+            <!-- Field Tips -->
+            <div class="bg-slate-900/50 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 flex items-start gap-3">
+                <span class="text-yellow-400 font-bold text-sm mt-0.5">⚡</span>
+                <p class="leading-relaxed">
+                    <strong class="text-slate-200">UK PAT Field Tip:</strong> Hold your phone ~15–20 cm from the Martindale HPAT550 LCD display so the <span class="font-mono text-slate-300">PASS/FAIL</span> banner and <span class="font-mono text-slate-300">Ω / MΩ</span> digits fill the yellow frame. Segment-bridging OCR prevents <span class="font-mono text-slate-300">0.02</span>/<span class="font-mono text-slate-300">0.04</span> misreads, and offline storage saves every scan automatically.
+                </p>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 2: RESULTS LOG VIEW ==================== -->
+        <section id="tabLog" class="hidden p-4 flex flex-col gap-4">
+            
+            <!-- KPI Summary Strip -->
+            <div class="grid grid-cols-4 gap-2.5">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
+                    <span class="text-[11px] uppercase tracking-wider text-slate-400 block">Tested</span>
+                    <span id="statTotal" class="font-mono text-xl font-extrabold text-white mt-0.5 block">0</span>
+                </div>
+                <div class="bg-slate-900 border border-emerald-500/30 rounded-2xl p-3 text-center">
+                    <span class="text-[11px] uppercase tracking-wider text-emerald-400 block">Passed</span>
+                    <span id="statPass" class="font-mono text-xl font-extrabold text-emerald-400 mt-0.5 block">0</span>
+                </div>
+                <div class="bg-slate-900 border border-red-500/30 rounded-2xl p-3 text-center">
+                    <span class="text-[11px] uppercase tracking-wider text-red-400 block">Failed</span>
+                    <span id="statFail" class="font-mono text-xl font-extrabold text-red-400 mt-0.5 block">0</span>
+                </div>
+                <div class="bg-slate-900 border border-yellow-400/30 rounded-2xl p-3 text-center">
+                    <span class="text-[11px] uppercase tracking-wider text-yellow-400 block">Pass %</span>
+                    <span id="statRate" class="font-mono text-xl font-extrabold text-yellow-400 mt-0.5 block">--%</span>
+                </div>
+            </div>
+
+            <!-- Export & Compliance Actions Bar -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="btnExportCsv" type="button" class="flex-1 min-w-[130px] py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold text-xs shadow transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Export CSV
+                </button>
+                <button id="btnPrintReport" type="button" class="flex-1 min-w-[140px] py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-yellow-400 border border-slate-700 font-bold text-xs transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    Print / PDF Report
+                </button>
+                <button id="btnClearAllTrigger" type="button" class="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-red-950/60 text-red-400 border border-slate-800 hover:border-red-500/40 font-semibold text-xs transition">
+                    Clear All
+                </button>
+            </div>
+
+            <!-- Search & Filter Controls -->
+            <div class="flex flex-col sm:flex-row gap-2.5">
+                <div class="relative flex-1">
+                    <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input id="searchRecordsInput" type="text" placeholder="Search Asset ID, Appliance, Location..." class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 focus:border-yellow-400 focus:outline-none text-sm text-white placeholder-slate-500">
+                </div>
+                <div class="flex rounded-xl bg-slate-900 p-1 border border-slate-800 shrink-0">
+                    <button type="button" data-filter="ALL" class="filter-pill flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold bg-yellow-400 text-slate-950 transition">All</button>
+                    <button type="button" data-filter="PASS" class="filter-pill flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">Pass</button>
+                    <button type="button" data-filter="FAIL" class="filter-pill flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">Fail</button>
+                </div>
+            </div>
+
+            <!-- Records List Container -->
+            <div id="recordsListContainer" class="flex flex-col gap-3">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== BOTTOM NAVIGATION BAR (NO PRINT) ==================== -->
+    <nav class="no-print fixed bottom-0 inset-x-0 z-30 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-4 py-2">
+        <div class="max-w-md mx-auto grid grid-cols-2 gap-2">
+            <button id="navBtnScan" type="button" class="py-2.5 px-4 rounded-xl bg-yellow-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span>Scan Screen</span>
+            </button>
+            <button id="navBtnLog" type="button" class="py-2.5 px-4 rounded-xl bg-slate-800/80 text-slate-300 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                <span>Results Log</span>
+                <span id="navBadgeCount" class="ml-1 px-2 py-0.5 text-xs font-mono rounded-full bg-slate-700 text-yellow-400">0</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ==================== VERIFICATION & ASSET TAGGING MODAL ==================== -->
+    <div id="verifyModal" class="no-print hidden fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+        <div class="bg-slate-900 border-t sm:border border-slate-700 w-full max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[94vh] flex flex-col overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse"></span>
+                    <h2 class="font-extrabold text-base text-white">Verify &amp; Log PAT Result</h2>
+                </div>
+                <button id="btnCloseVerifyModal" type="button" class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Scrollable Form Body -->
+            <form id="verifyForm" class="p-5 overflow-y-auto flex-1 flex flex-col gap-4">
+                
+                <!-- Top Strip: Captured Raw LCD + Processed OCR Preview + Overall PASS/FAIL Toggle -->
+                <div class="grid grid-cols-12 gap-3 items-stretch bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                    <!-- Dual Thumbnail View: Raw LCD Photo & Binary OCR View -->
+                    <div class="col-span-6 grid grid-cols-2 gap-1.5">
+                        <div class="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-700 flex items-center justify-center min-h-[96px]">
+                            <img id="capturedThumbnail" src="" alt="Raw HPAT550 Screen" class="w-full h-full object-cover">
+                            <span class="absolute bottom-1 left-1 bg-slate-950/85 text-[9px] font-mono text-slate-300 px-1.5 py-0.5 rounded">RAW LCD</span>
+                        </div>
+                        <div class="relative rounded-xl overflow-hidden bg-white border border-yellow-400/50 flex items-center justify-center min-h-[96px]">
+                            <img id="processedThumbnail" src="" alt="Processed Binary OCR Input" class="w-full h-full object-cover">
+                            <span class="absolute bottom-1 left-1 bg-slate-950/90 text-[9px] font-mono text-yellow-400 px-1.5 py-0.5 rounded">OCR VIEW</span>
+                        </div>
+                    </div>
+
+                    <div class="col-span-6 flex flex-col justify-between gap-2">
+                        <div>
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Overall Outcome</span>
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <button type="button" id="btnOutcomePass" class="py-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 transition flex items-center justify-center gap-1 bg-emerald-500/20 border-emerald-500 text-emerald-400">
+                                    ✓ PASS
+                                </button>
+                                <button type="button" id="btnOutcomeFail" class="py-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 transition flex items-center justify-center gap-1 bg-slate-900 border-slate-700 text-slate-400">
+                                    ✕ FAIL
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                            <span>Formal Visual:</span>
+                            <div class="flex gap-1">
+                                <button type="button" id="btnVisualPass" class="px-2 py-1 rounded-lg font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">PASS</button>
+                                <button type="button" id="btnVisualFail" class="px-2 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700">FAIL</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live LCD Threshold & Invert Re-OCR Controls -->
+                    <div class="col-span-12 pt-2.5 mt-0.5 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 flex-1 min-w-[180px]">
+                            <label for="inputOcrBias" class="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">LCD Contrast</label>
+                            <input id="inputOcrBias" type="range" min="-45" max="45" step="5" value="0" class="w-full accent-yellow-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                            <span id="ocrBiasValue" class="font-mono text-[10px] text-yellow-400 w-7 text-right">0</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" id="btnToggleInvertLcd" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-900 text-slate-300 border-slate-700 hover:border-yellow-400 transition">
+                                Invert LCD: OFF
+                            </button>
+                            <button type="button" id="btnReRunOcr" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-yellow-400/20 text-yellow-400 border border-yellow-400/50 hover:bg-yellow-400/30 transition">
+                                ↻ Re-Read
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Asset ID & Appliance Description -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label for="inputAssetId" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Asset ID / Tag # *</label>
+                        <div class="flex gap-1.5">
+                            <input id="inputAssetId" type="text" required placeholder="PAT-001" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono font-bold text-yellow-400 text-sm">
+                            <button type="button" id="btnAutoIncrementId" title="Generate Next ID" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono text-slate-300 border border-slate-700">Auto</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="inputAppliance" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Appliance Description *</label>
+                        <input id="inputAppliance" type="text" required placeholder="e.g. Kettle, Monitor, Lead" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
+                    </div>
+                </div>
+
+                <!-- Quick Appliance Presets -->
+                <div>
+                    <span class="text-[11px] font-semibold text-slate-400 block mb-1.5">Quick Appliance Presets:</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" data-preset="Kettle" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Kettle</button>
+                        <button type="button" data-preset="Monitor" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Monitor</button>
+                        <button type="button" data-preset="Laptop PSU" data-class="Class II" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Laptop PSU</button>
+                        <button type="button" data-preset="Extension Lead" data-class="Lead" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Extension Lead</button>
+                        <button type="button" data-preset="IEC Power Lead" data-class="Lead" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">IEC Lead</button>
+                        <button type="button" data-preset="Microwave" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Microwave</button>
+                        <button type="button" data-preset="Desktop PC" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Desktop PC</button>
+                    </div>
+                </div>
+
+                <!-- Location / Room -->
+                <div>
+                    <label for="inputLocation" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Location / Room *</label>
+                    <input id="inputLocation" type="text" required placeholder="e.g. Office 2B, Kitchen, Server Room" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
+                </div>
+
+                <!-- Martindale HPAT550 Extracted Readings Grid -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 flex flex-col gap-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-yellow-400">HPAT550 Measured Readings</span>
+                        <button type="button" id="btnToggleRawOcr" class="text-[11px] text-slate-400 underline hover:text-white">View Raw OCR</button>
+                    </div>
+
+                    <!-- Raw OCR Debug Drawer -->
+                    <pre id="rawOcrPreview" class="hidden text-[11px] font-mono bg-slate-900 text-slate-300 p-2.5 rounded-xl border border-slate-800 overflow-x-auto whitespace-pre-wrap"></pre>
+
+                    <!-- Test Class Selector -->
+                    <div>
+                        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Appliance Class / Test Sequence</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" data-testtype="Class I" class="testtype-btn py-2 rounded-xl text-xs font-bold border bg-yellow-400 text-slate-950 border-yellow-400">Class I</button>
+                            <button type="button" data-testtype="Class II" class="testtype-btn py-2 rounded-xl text-xs font-bold border bg-slate-900 text-slate-300 border-slate-700">Class II</button>
+                            <button type="button" data-testtype="Lead" class="testtype-btn py-2 rounded-xl text-xs font-bold border bg-slate-900 text-slate-300 border-slate-700">IEC Lead</button>
+                        </div>
+                    </div>
+
+                    <!-- Earth Continuity & Insulation Resistance with One-Tap Micro-Adjustment Steppers -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="inputEarth" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Earth Bond Continuity (Ω)</label>
+                            <div class="flex items-stretch gap-1">
+                                <button type="button" id="btnEarthMinus" aria-label="Decrease Earth Bond by 0.01 Ohm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">−.01</button>
+                                <input id="inputEarth" type="text" placeholder="e.g. 0.02 Ω or N/A" class="w-full min-w-0 px-2.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono font-bold text-white text-sm text-center">
+                                <button type="button" id="btnEarthPlus" aria-label="Increase Earth Bond by 0.01 Ohm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">+.01</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="inputInsulation" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Insulation Resistance (MΩ)</label>
+                            <div class="flex items-stretch gap-1">
+                                <button type="button" id="btnInsMinus" aria-label="Decrease Insulation by 0.01 MOhm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">−.01</button>
+                                <input id="inputInsulation" type="text" placeholder="e.g. >99.9 MΩ" class="w-full min-w-0 px-2.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono font-bold text-white text-sm text-center">
+                                <button type="button" id="btnInsPlus" aria-label="Increase Insulation by 0.01 MOhm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">+.01</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Test Voltage & Polarity -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="inputVoltage" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Insulation Voltage</label>
+                            <select id="inputVoltage" class="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-sm text-white">
+                                <option value="500V">500V DC</option>
+                                <option value="250V">250V DC (IT/Surge)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="inputPolarity" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Lead Polarity</label>
+                            <select id="inputPolarity" class="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-sm text-white">
+                                <option value="N/A">N/A (Appliance)</option>
+                                <option value="PASS">PASS (Wired OK)</option>
+                                <option value="FAIL">FAIL (Reversed/Open)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Optional Notes -->
+                <div>
+                    <label for="inputNotes" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Engineer Notes (Optional)</label>
+                    <input id="inputNotes" type="text" placeholder="e.g. Fuse checked (13A), retest due 12 months" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
+                </div>
+
+                <!-- Submit Actions -->
+                <div class="pt-2 flex gap-2.5 sticky bottom-0 bg-slate-900 pb-1">
+                    <button type="button" id="btnCancelVerify" class="px-4 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm">
+                        Discard
+                    </button>
+                    <button type="submit" class="flex-1 py-3.5 px-5 rounded-xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.99] text-slate-950 font-extrabold text-sm shadow-lg shadow-yellow-400/20 transition flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Save &amp; Scan Next
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== PHOTO PREVIEW LIGHTBOX MODAL ==================== -->
+    <div id="photoPreviewModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                <span id="photoPreviewTitle" class="font-mono font-bold text-sm text-yellow-400">PAT-001 Screen Capture</span>
+                <button id="btnClosePhotoPreview" type="button" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">✕</button>
+            </div>
+            <div class="p-4 bg-slate-950 flex items-center justify-center">
+                <img id="photoPreviewImg" src="" alt="Saved Tester Screen" class="max-h-[65vh] rounded-xl border border-slate-800">
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== CUSTOM CONFIRMATION DIALOG MODAL ==================== -->
+    <div id="confirmDialogModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl">
+            <h3 id="confirmDialogTitle" class="font-extrabold text-base text-white mb-1.5">Confirm Action</h3>
+            <p id="confirmDialogMessage" class="text-xs text-slate-400 leading-relaxed mb-5">Are you sure you want to proceed?</p>
+            <div class="flex justify-end gap-2.5">
+                <button id="btnConfirmCancel" type="button" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300">Cancel</button>
+                <button id="btnConfirmAccept" type="button" class="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-xs font-bold text-white">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== QUICK LOCATION INPUT MODAL ==================== -->
+    <div id="locationPromptModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl">
+            <h3 class="font-extrabold text-base text-white mb-1">Set Batch Room / Location</h3>
+            <p class="text-xs text-slate-400 mb-3">Automatically fills this location on subsequent scans.</p>
+            <input id="batchLocationInput" type="text" placeholder="e.g. Floor 2 - Marketing Office" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-sm text-white mb-4">
+            <div class="flex justify-end gap-2">
+                <button id="btnLocationCancel" type="button" class="px-4 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">Cancel</button>
+                <button id="btnLocationSave" type="button" class="px-4 py-2 rounded-xl bg-yellow-400 text-slate-950 text-xs font-extrabold">Apply Location</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PRINTABLE FORMAL PAT REGISTER REPORT ==================== -->
+    <div id="printReportContainer" class="hidden print-only p-6">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 12px;">
+            <div>
+                <h1 style="font-size: 18pt; font-weight: 800; margin: 0;">PORTABLE APPLIANCE TEST (PAT) REGISTER</h1>
+                <p style="font-size: 10pt; color: #475569; margin: 4px 0 0 0;">Test Instrument: Martindale HPAT550 | IET Code of Practice (5th Edition) | PAT Snap 550</p>
+            </div>
+            <div style="text-align: right; font-size: 9.5pt;">
+                <div><strong>Report Date (UK):</strong> <span id="printReportDate"></span></div>
+                <div><strong>Summary:</strong> <span id="printSummaryText"></span></div>
+            </div>
+        </div>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Asset ID</th>
+                    <th>Appliance</th>
+                    <th>Location</th>
+                    <th>Class</th>
+                    <th>Visual</th>
+                    <th>Earth (Ω)</th>
+                    <th>Insul. (MΩ)</th>
+                    <th>Volt / Pol.</th>
+                    <th>Result</th>
+                    <th>Date / Time</th>
+                </tr>
+            </thead>
+            <tbody id="printTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Hidden Canvases for Image Cropping & Simulated HPAT550 LCD Generation -->
+    <canvas id="captureCanvas" class="hidden"></canvas>
+    <canvas id="demoScreenCanvas" width="640" height="480" class="hidden"></canvas>
+
+    <!-- ==================== APPLICATION LOGIC ==================== -->
+    <script>
+        /**
+         * PAT Snap 550 - Martindale HPAT550 Screen Scanner & Compliance Logger
+         * Self-contained client-side application with 7-segment LCD preprocessing (Otsu binary
+         * thresholding + segment gap bridging), live OCR preview, micro-steppers, and UK IET register export.
+         */
+        (function () {
+            'use strict';
+
+            // Storage Keys
+            const STORAGE_KEY_RECORDS = 'pat_snap_550_records_v1';
+            const STORAGE_KEY_LOCATION = 'pat_snap_550_last_location_v1';
+
+            // Application State
+            const state = {
+                records: [],
+                lastLocation: '',
+                activeFilter: 'ALL',
+                searchQuery: '',
+                mediaStream: null,
+                ocrInvert: false,
+                ocrBias: 0,
+                liveScan: {
+                    active: false,
+                    busy: false,
+                    timerId: null,
+                    worker: null,
+                    lastParsed: null,
+                    lastFrameCanvas: null,
+                    lastThumbUrl: ''
+                },
+                currentDraft: {
+                    sourceCanvas: null,
+                    imageDataUrl: '',
+                    processedDataUrl: '',
+                    rawOcr: '',
+                    status: 'PASS',
+                    visualCheck: 'PASS',
+                    testType: 'Class I'
+                }
+            };
+
+            // Cached DOM References
+            const dom = {
+                headerNextAssetId: document.getElementById('headerNextAssetId'),
+                toastContainer: document.getElementById('toastContainer'),
+                tabScan: document.getElementById('tabScan'),
+                tabLog: document.getElementById('tabLog'),
+                navBtnScan: document.getElementById('navBtnScan'),
+                navBtnLog: document.getElementById('navBtnLog'),
+                navBadgeCount: document.getElementById('navBadgeCount'),
+                cameraVideo: document.getElementById('cameraVideo'),
+                cameraPlaceholder: document.getElementById('cameraPlaceholder'),
+                cameraStatusTitle: document.getElementById('cameraStatusTitle'),
+                cameraStatusDesc: document.getElementById('cameraStatusDesc'),
+                btnStartCamera: document.getElementById('btnStartCamera'),
+                ocrLoadingOverlay: document.getElementById('ocrLoadingOverlay'),
+                ocrProgressText: document.getElementById('ocrProgressText'),
+                ocrProgressBar: document.getElementById('ocrProgressBar'),
+                btnCaptureFrame: document.getElementById('btnCaptureFrame'),
+                btnCaptureFrameLabel: document.getElementById('btnCaptureFrameLabel'),
+                btnToggleLiveScan: document.getElementById('btnToggleLiveScan'),
+                liveScanToggleState: document.getElementById('liveScanToggleState'),
+                liveScanPulseDot: document.getElementById('liveScanPulseDot'),
+                reticleHeaderLabel: document.getElementById('reticleHeaderLabel'),
+                hudStatusBar: document.getElementById('hudStatusBar'),
+                hudStatusText: document.getElementById('hudStatusText'),
+                hudClassText: document.getElementById('hudClassText'),
+                hudEarthValue: document.getElementById('hudEarthValue'),
+                hudInsValue: document.getElementById('hudInsValue'),
+                hudFooterTip: document.getElementById('hudFooterTip'),
+                filePhotoInput: document.getElementById('filePhotoInput'),
+                btnDemoScan: document.getElementById('btnDemoScan'),
+                demoPresetSelect: document.getElementById('demoPresetSelect'),
+                currentBatchLocationDisplay: document.getElementById('currentBatchLocationDisplay'),
+                btnQuickSetLocation: document.getElementById('btnQuickSetLocation'),
+                statTotal: document.getElementById('statTotal'),
+                statPass: document.getElementById('statPass'),
+                statFail: document.getElementById('statFail'),
+                statRate: document.getElementById('statRate'),
+                btnExportCsv: document.getElementById('btnExportCsv'),
+                btnPrintReport: document.getElementById('btnPrintReport'),
+                btnClearAllTrigger: document.getElementById('btnClearAllTrigger'),
+                searchRecordsInput: document.getElementById('searchRecordsInput'),
+                recordsListContainer: document.getElementById('recordsListContainer'),
+                verifyModal: document.getElementById('verifyModal'),
+                btnCloseVerifyModal: document.getElementById('btnCloseVerifyModal'),
+                verifyForm: document.getElementById('verifyForm'),
+                capturedThumbnail: document.getElementById('capturedThumbnail'),
+                processedThumbnail: document.getElementById('processedThumbnail'),
+                inputOcrBias: document.getElementById('inputOcrBias'),
+                ocrBiasValue: document.getElementById('ocrBiasValue'),
+                btnToggleInvertLcd: document.getElementById('btnToggleInvertLcd'),
+                btnReRunOcr: document.getElementById('btnReRunOcr'),
+                btnOutcomePass: document.getElementById('btnOutcomePass'),
+                btnOutcomeFail: document.getElementById('btnOutcomeFail'),
+                btnVisualPass: document.getElementById('btnVisualPass'),
+                btnVisualFail: document.getElementById('btnVisualFail'),
+                inputAssetId: document.getElementById('inputAssetId'),
+                btnAutoIncrementId: document.getElementById('btnAutoIncrementId'),
+                inputAppliance: document.getElementById('inputAppliance'),
+                inputLocation: document.getElementById('inputLocation'),
+                btnToggleRawOcr: document.getElementById('btnToggleRawOcr'),
+                rawOcrPreview: document.getElementById('rawOcrPreview'),
+                inputEarth: document.getElementById('inputEarth'),
+                btnEarthMinus: document.getElementById('btnEarthMinus'),
+                btnEarthPlus: document.getElementById('btnEarthPlus'),
+                inputInsulation: document.getElementById('inputInsulation'),
+                btnInsMinus: document.getElementById('btnInsMinus'),
+                btnInsPlus: document.getElementById('btnInsPlus'),
+                inputVoltage: document.getElementById('inputVoltage'),
+                inputPolarity: document.getElementById('inputPolarity'),
+                inputNotes: document.getElementById('inputNotes'),
+                btnCancelVerify: document.getElementById('btnCancelVerify'),
+                photoPreviewModal: document.getElementById('photoPreviewModal'),
+                photoPreviewTitle: document.getElementById('photoPreviewTitle'),
+                photoPreviewImg: document.getElementById('photoPreviewImg'),
+                btnClosePhotoPreview: document.getElementById('btnClosePhotoPreview'),
+                confirmDialogModal: document.getElementById('confirmDialogModal'),
+                confirmDialogTitle: document.getElementById('confirmDialogTitle'),
+                confirmDialogMessage: document.getElementById('confirmDialogMessage'),
+                btnConfirmCancel: document.getElementById('btnConfirmCancel'),
+                btnConfirmAccept: document.getElementById('btnConfirmAccept'),
+                locationPromptModal: document.getElementById('locationPromptModal'),
+                batchLocationInput: document.getElementById('batchLocationInput'),
+                btnLocationCancel: document.getElementById('btnLocationCancel'),
+                btnLocationSave: document.getElementById('btnLocationSave'),
+                printReportDate: document.getElementById('printReportDate'),
+                printSummaryText: document.getElementById('printSummaryText'),
+                printTableBody: document.getElementById('printTableBody'),
+                captureCanvas: document.getElementById('captureCanvas'),
+                demoScreenCanvas: document.getElementById('demoScreenCanvas')
+            };
+
+            /* =====================================================================
+             * 1. INITIALIZATION & LOCAL STORAGE
+             * ===================================================================== */
+            function init() {
+                loadFromStorage();
+                updateAssetIdIndicators();
+                updateBatchLocationUI();
+                renderRecordsLog();
+                bindEvents();
+                startCameraStream(true);
+            }
+
+            function loadFromStorage() {
+                try {
+                    const savedRecords = localStorage.getItem(STORAGE_KEY_RECORDS);
+                    if (savedRecords) {
+                        const parsed = JSON.parse(savedRecords);
+                        if (Array.isArray(parsed)) {
+                            state.records = parsed;
+                        }
+                    }
+                    const savedLocation = localStorage.getItem(STORAGE_KEY_LOCATION);
+                    if (savedLocation) {
+                        state.lastLocation = savedLocation;
+                    }
+                } catch (err) {
+                    console.warn('Could not read from localStorage:', err);
+                }
+            }
+
+            function saveToStorage() {
+                try {
+                    localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(state.records));
+                    localStorage.setItem(STORAGE_KEY_LOCATION, state.lastLocation);
+                } catch (err) {
+                    console.warn('Storage quota warning, trimming oldest thumbnails:', err);
+                    try {
+                        for (let i = state.records.length - 1; i >= 5; i--) {
+                            if (state.records[i].photo) {
+                                state.records[i].photo = '';
+                            }
+                        }
+                        localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(state.records));
+                    } catch (retryErr) {
+                        showToast('Device storage is full — export CSV to back up records.', 'error');
+                    }
+                }
+            }
+
+            /* =====================================================================
+             * 2. ASSET ID AUTO-INCREMENT & UI HELPERS
+             * ===================================================================== */
+            function generateNextAssetId() {
+                let maxNum = 0;
+                state.records.forEach(rec => {
+                    const match = String(rec.assetId || '').match(/(\d+)$/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (num > maxNum) maxNum = num;
+                    }
+                });
+                const nextNum = maxNum + 1;
+                return `PAT-${String(nextNum).padStart(3, '0')}`;
+            }
+
+            function updateAssetIdIndicators() {
+                const nextId = generateNextAssetId();
+                if (dom.headerNextAssetId) dom.headerNextAssetId.textContent = nextId;
+                if (dom.navBadgeCount) dom.navBadgeCount.textContent = state.records.length;
+            }
+
+            function updateBatchLocationUI() {
+                if (!dom.currentBatchLocationDisplay) return;
+                if (state.lastLocation) {
+                    dom.currentBatchLocationDisplay.textContent = state.lastLocation;
+                    dom.currentBatchLocationDisplay.classList.remove('text-slate-400');
+                    dom.currentBatchLocationDisplay.classList.add('text-yellow-400');
+                } else {
+                    dom.currentBatchLocationDisplay.textContent = 'Not set (will prompt on scan)';
+                    dom.currentBatchLocationDisplay.classList.remove('text-yellow-400');
+                    dom.currentBatchLocationDisplay.classList.add('text-white');
+                }
+            }
+
+            function showToast(message, type = 'info') {
+                const toast = document.createElement('div');
+                const colorMap = {
+                    success: 'bg-emerald-950/95 border-emerald-500 text-emerald-200',
+                    error: 'bg-red-950/95 border-red-500 text-red-200',
+                    info: 'bg-slate-900/95 border-yellow-400 text-slate-100'
+                };
+                toast.className = `pointer-events-auto px-4 py-3 rounded-2xl border shadow-xl text-xs font-bold flex items-center justify-between gap-3 transition-all ${colorMap[type] || colorMap.info}`;
+                toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+                dom.toastContainer.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(-6px)';
+                    setTimeout(() => toast.remove(), 220);
+                }, 3200);
+            }
+
+            function showConfirmDialog(title, message, onConfirm) {
+                dom.confirmDialogTitle.textContent = title;
+                dom.confirmDialogMessage.textContent = message;
+                dom.confirmDialogModal.classList.remove('hidden');
+
+                const cleanup = () => {
+                    dom.confirmDialogModal.classList.add('hidden');
+                    dom.btnConfirmCancel.onclick = null;
+                    dom.btnConfirmAccept.onclick = null;
+                };
+
+                dom.btnConfirmCancel.onclick = cleanup;
+                dom.btnConfirmAccept.onclick = () => {
+                    cleanup();
+                    if (typeof onConfirm === 'function') onConfirm();
+                };
+            }
+
+            function escapeHtml(str) {
+                return String(str ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            /* =====================================================================
+             * 3. CAMERA STREAMING & FRAME CAPTURE
+             * ===================================================================== */
+            async function startCameraStream(silentFail = false) {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    if (!silentFail) {
+                        showToast('Camera API unavailable — use Upload / Take Photo.', 'info');
+                    }
+                    return;
+                }
+
+                try {
+                    if (state.mediaStream) {
+                        state.mediaStream.getTracks().forEach(t => t.stop());
+                    }
+
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: { ideal: 'environment' },
+                            width: { ideal: 1280 },
+                            height: { ideal: 960 }
+                        },
+                        audio: false
+                    });
+
+                    state.mediaStream = stream;
+                    dom.cameraVideo.srcObject = stream;
+                    dom.cameraVideo.classList.remove('hidden');
+                    dom.cameraPlaceholder.classList.add('hidden');
+                    dom.btnCaptureFrame.disabled = false;
+                    dom.btnToggleLiveScan.disabled = false;
+                } catch (err) {
+                    console.warn('Camera access note:', err.message);
+                    dom.cameraVideo.classList.add('hidden');
+                    dom.cameraPlaceholder.classList.remove('hidden');
+                    dom.btnCaptureFrame.disabled = true;
+                    dom.btnToggleLiveScan.disabled = true;
+                    if (!silentFail) {
+                        dom.cameraStatusTitle.textContent = 'Camera Permission Blocked';
+                        dom.cameraStatusDesc.textContent = 'Use "Upload / Take Photo" below to snap with your native camera, or try "Demo Scan".';
+                        showToast('Camera blocked. Use Upload / Take Photo instead.', 'info');
+                    }
+                }
+            }
+
+            /**
+             * Grabs the current frame inside the HPAT550 alignment reticle into captureCanvas
+             */
+            function grabReticleCanvas() {
+                const video = dom.cameraVideo;
+                const vw = video.videoWidth;
+                const vh = video.videoHeight;
+
+                const cropW = Math.round(vw * 0.76);
+                const cropH = Math.round(vh * 0.68);
+                const cropX = Math.round((vw - cropW) / 2);
+                const cropY = Math.round((vh - cropH) / 2);
+
+                const canvas = dom.captureCanvas;
+                canvas.width = cropW;
+                canvas.height = cropH;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+                return canvas;
+            }
+
+            /**
+             * Captures the region inside the yellow HPAT550 viewfinder reticle from live video
+             */
+            function captureFromLiveVideo() {
+                if (!state.mediaStream || dom.cameraVideo.readyState < 2) {
+                    showToast('Camera stream not ready yet.', 'error');
+                    return;
+                }
+
+                // If Live Auto-Scan already has a fresh reading locked in, open verification immediately
+                if (state.liveScan.active && state.liveScan.lastParsed && state.liveScan.lastFrameCanvas) {
+                    const snapshotParsed = { ...state.liveScan.lastParsed };
+                    const snapshotCanvas = state.liveScan.lastFrameCanvas;
+                    const snapshotThumb = state.liveScan.lastThumbUrl;
+                    const snapshotRaw = snapshotParsed.rawOcr || '';
+                    stopLiveAutoScan();
+
+                    const procCanvas = preprocessForOcr(snapshotCanvas, { invert: false, thresholdBias: 0 });
+                    const procThumb = createCompressedThumbnail(procCanvas);
+                    state.ocrInvert = false;
+                    state.ocrBias = 0;
+                    openVerificationModal(snapshotParsed, snapshotThumb, procThumb, snapshotRaw, snapshotCanvas, false);
+                    return;
+                }
+
+                stopLiveAutoScan();
+                const canvas = grabReticleCanvas();
+                const thumbDataUrl = createCompressedThumbnail(canvas);
+                state.ocrInvert = false;
+                state.ocrBias = 0;
+                runOcrOnCanvas(canvas, thumbDataUrl);
+            }
+
+            /**
+             * Toggles QR-style continuous real-time OCR polling on the live camera feed
+             */
+            async function toggleLiveAutoScan() {
+                if (state.liveScan.active) {
+                    stopLiveAutoScan();
+                    showToast('Live auto-scan paused.', 'info');
+                    return;
+                }
+
+                if (!state.mediaStream || dom.cameraVideo.readyState < 2) {
+                    showToast('Enable rear camera first for Live Read.', 'error');
+                    return;
+                }
+
+                state.liveScan.active = true;
+                state.liveScan.lastParsed = null;
+                dom.btnToggleLiveScan.className = 'px-4 py-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-300 font-extrabold text-xs sm:text-sm transition flex flex-col items-center justify-center leading-tight shrink-0 cursor-pointer';
+                dom.liveScanToggleState.textContent = 'ON • LIVE';
+                dom.liveScanToggleState.className = 'text-[10px] font-mono text-emerald-300 font-bold';
+                dom.liveScanPulseDot.classList.remove('hidden');
+                dom.reticleHeaderLabel.textContent = 'LIVE READING HPAT550...';
+                dom.btnCaptureFrameLabel.textContent = 'LOCK & LOG READING';
+                dom.hudFooterTip.textContent = 'Hold steady — numbers update automatically';
+
+                try {
+                    if (!state.liveScan.worker) {
+                        const worker = await Tesseract.createWorker('eng', 1);
+                        await worker.setParameters({
+                            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.<>:/()-ΩM ',
+                            tessedit_pageseg_mode: '6'
+                        });
+                        state.liveScan.worker = worker;
+                    }
+
+                    // Run real-time OCR loop (~850ms cadence without overlapping frames)
+                    runLiveScanTick();
+                    state.liveScan.timerId = setInterval(runLiveScanTick, 850);
+                } catch (err) {
+                    console.error('Live OCR init failed:', err);
+                    stopLiveAutoScan();
+                    showToast('Could not start Live Read — use Snap & Scan instead.', 'error');
+                }
+            }
+
+            async function runLiveScanTick() {
+                if (!state.liveScan.active || state.liveScan.busy || !state.liveScan.worker) return;
+                if (!state.mediaStream || dom.cameraVideo.readyState < 2) return;
+
+                state.liveScan.busy = true;
+                try {
+                    const frameCanvas = grabReticleCanvas();
+                    // Clone frame so user can lock this exact snapshot
+                    const frozenCopy = document.createElement('canvas');
+                    frozenCopy.width = frameCanvas.width;
+                    frozenCopy.height = frameCanvas.height;
+                    frozenCopy.getContext('2d').drawImage(frameCanvas, 0, 0);
+
+                    const procCanvas = preprocessForOcr(frozenCopy, { invert: false, thresholdBias: 0 });
+                    const { data: { text } } = await state.liveScan.worker.recognize(procCanvas);
+
+                    if (!state.liveScan.active) return;
+
+                    const parsed = parseHpat550OcrText(text);
+                    parsed.rawOcr = text;
+                    state.liveScan.lastParsed = parsed;
+                    state.liveScan.lastFrameCanvas = frozenCopy;
+                    state.liveScan.lastThumbUrl = createCompressedThumbnail(frozenCopy);
+
+                    // Update live HUD numbers inside the viewfinder reticle
+                    updateViewfinderLiveHud(parsed);
+                } catch (err) {
+                    console.warn('Live OCR tick skipped:', err);
+                } finally {
+                    state.liveScan.busy = false;
+                }
+            }
+
+            function updateViewfinderLiveHud(parsed) {
+                const isFail = parsed.status === 'FAIL';
+                dom.hudStatusText.textContent = `STATUS: ${parsed.status}`;
+                dom.hudStatusText.className = isFail ? 'font-extrabold text-red-400' : 'font-extrabold text-emerald-400';
+                dom.hudStatusBar.className = isFail
+                    ? 'border border-red-400/70 bg-red-950/65 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors'
+                    : 'border border-emerald-400/70 bg-emerald-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors';
+
+                dom.hudClassText.textContent = parsed.testType.toUpperCase();
+                dom.hudEarthValue.textContent = parsed.earth;
+                dom.hudInsValue.textContent = parsed.insulation;
+                dom.hudFooterTip.textContent = `Live: ${parsed.status} | ${parsed.earth} | ${parsed.insulation} — Tap LOCK`;
+            }
+
+            async function stopLiveAutoScan() {
+                state.liveScan.active = false;
+                state.liveScan.busy = false;
+                if (state.liveScan.timerId) {
+                    clearInterval(state.liveScan.timerId);
+                    state.liveScan.timerId = null;
+                }
+                if (state.liveScan.worker) {
+                    try {
+                        await state.liveScan.worker.terminate();
+                    } catch (e) { /* ignore */ }
+                    state.liveScan.worker = null;
+                }
+
+                // Reset Viewfinder HUD & Toggle Button UI
+                dom.btnToggleLiveScan.className = 'px-4 py-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-xs sm:text-sm transition flex flex-col items-center justify-center leading-tight shrink-0 cursor-pointer disabled:cursor-not-allowed';
+                dom.liveScanToggleState.textContent = 'OFF';
+                dom.liveScanToggleState.className = 'text-[10px] font-mono text-slate-400';
+                dom.liveScanPulseDot.classList.add('hidden');
+                dom.reticleHeaderLabel.textContent = 'Martindale HPAT550 LCD';
+                dom.btnCaptureFrameLabel.textContent = 'SNAP & SCAN SCREEN';
+                dom.hudStatusBar.className = 'border border-dashed border-emerald-400/50 bg-slate-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors';
+                dom.hudStatusText.textContent = 'STATUS: PASS / FAIL';
+                dom.hudStatusText.className = 'font-bold text-slate-200';
+                dom.hudClassText.textContent = 'CLASS I / II / LEAD';
+                dom.hudEarthValue.textContent = '0.00 Ω';
+                dom.hudInsValue.textContent = '>99.9 MΩ';
+                dom.hudFooterTip.textContent = 'Keep screen flat & avoid glare';
+            }
+
+            /**
+             * Processes an uploaded image file or native mobile camera photo
+             */
+            function handleImageFileUpload(file) {
+                if (!file) return;
+                stopLiveAutoScan();
+                const reader = new FileReader();
+                reader.onload = function (evt) {
+                    const img = new Image();
+                    img.onload = function () {
+                        // Scale down excessively huge mobile camera photos for fast OCR
+                        const maxDim = 1100;
+                        let w = img.width;
+                        let h = img.height;
+                        if (w > maxDim || h > maxDim) {
+                            const ratio = Math.min(maxDim / w, maxDim / h);
+                            w = Math.round(w * ratio);
+                            h = Math.round(h * ratio);
+                        }
+                        const canvas = dom.captureCanvas;
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+
+                        const thumbDataUrl = createCompressedThumbnail(canvas);
+                        state.ocrInvert = false;
+                        state.ocrBias = 0;
+                        runOcrOnCanvas(canvas, thumbDataUrl);
+                    };
+                    img.src = evt.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            /**
+             * Creates a lightweight JPEG thumbnail (~320px wide) to save cleanly in localStorage
+             */
+            function createCompressedThumbnail(sourceCanvas) {
+                const thumbCanvas = document.createElement('canvas');
+                const targetW = 340;
+                const ratio = targetW / sourceCanvas.width;
+                thumbCanvas.width = targetW;
+                thumbCanvas.height = Math.round(sourceCanvas.height * ratio);
+                const ctx = thumbCanvas.getContext('2d');
+                ctx.drawImage(sourceCanvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+                return thumbCanvas.toDataURL('image/jpeg', 0.72);
+            }
+
+            /* =====================================================================
+             * 4. SIMULATED MARTINDALE HPAT550 LCD GENERATOR (FOR DEMO SCAN)
+             * ===================================================================== */
+            function runSimulatedHpat550Scan(presetKey) {
+                const presets = {
+                    pass_class1: {
+                        status: 'PASS',
+                        bannerColor: '#10B981',
+                        testType: 'CLASS I',
+                        earth: '0.02 Ω',
+                        insulation: '>99.9 MΩ',
+                        voltage: '500V',
+                        polarity: 'N/A',
+                        appliance: 'Kettle'
+                    },
+                    pass_class2: {
+                        status: 'PASS',
+                        bannerColor: '#10B981',
+                        testType: 'CLASS II',
+                        earth: 'N/A',
+                        insulation: '>99.9 MΩ',
+                        voltage: '500V',
+                        polarity: 'N/A',
+                        appliance: 'Laptop PSU'
+                    },
+                    pass_lead: {
+                        status: 'PASS',
+                        bannerColor: '#10B981',
+                        testType: 'LEAD',
+                        earth: '0.06 Ω',
+                        insulation: '>99.9 MΩ',
+                        voltage: '500V',
+                        polarity: 'POLARITY PASS',
+                        appliance: 'IEC Power Lead'
+                    },
+                    fail_earth: {
+                        status: 'FAIL',
+                        bannerColor: '#EF4444',
+                        testType: 'CLASS I',
+                        earth: '1.85 Ω',
+                        insulation: '48.2 MΩ',
+                        voltage: '500V',
+                        polarity: 'N/A',
+                        appliance: 'Extension Lead'
+                    }
+                };
+
+                const data = presets[presetKey] || presets.pass_class1;
+                const canvas = dom.demoScreenCanvas;
+                const ctx = canvas.getContext('2d');
+
+                // Draw Martindale yellow outer bezel
+                ctx.fillStyle = '#FACC15';
+                ctx.fillRect(0, 0, 640, 480);
+
+                // Dark LCD bezel
+                ctx.fillStyle = '#0F172A';
+                ctx.beginPath();
+                ctx.roundRect(28, 28, 584, 424, 18);
+                ctx.fill();
+
+                // LCD inner screen
+                ctx.fillStyle = '#1E293B';
+                ctx.fillRect(46, 46, 548, 388);
+
+                // Top Martindale header strip
+                ctx.fillStyle = '#0F172A';
+                ctx.fillRect(46, 46, 548, 44);
+                ctx.fillStyle = '#FACC15';
+                ctx.font = 'bold 20px monospace';
+                ctx.fillText('MARTINDALE HPAT550', 64, 75);
+                ctx.fillStyle = '#E2E8F0';
+                ctx.fillText(data.testType, 465, 75);
+
+                // PASS / FAIL Main Status Banner
+                ctx.fillStyle = data.bannerColor;
+                ctx.fillRect(66, 106, 508, 72);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 46px sans-serif';
+                ctx.fillText(data.status, 255, 158);
+
+                // Earth Continuity Row
+                ctx.fillStyle = '#94A3B8';
+                ctx.font = 'bold 22px monospace';
+                ctx.fillText('EARTH:', 72, 232);
+                ctx.fillStyle = data.status === 'FAIL' ? '#F87171' : '#FFFFFF';
+                ctx.font = 'bold 34px monospace';
+                ctx.fillText(data.earth, 260, 235);
+
+                // Insulation Resistance Row
+                ctx.fillStyle = '#94A3B8';
+                ctx.font = 'bold 22px monospace';
+                ctx.fillText(`INS (${data.voltage}):`, 72, 305);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 34px monospace';
+                ctx.fillText(data.insulation, 260, 308);
+
+                // Polarity / Footer Row
+                ctx.fillStyle = '#94A3B8';
+                ctx.font = 'bold 20px monospace';
+                ctx.fillText('POLARITY:', 72, 375);
+                ctx.fillStyle = '#34D399';
+                ctx.font = 'bold 26px monospace';
+                ctx.fillText(data.polarity, 260, 377);
+
+                const thumbDataUrl = createCompressedThumbnail(canvas);
+                state.ocrInvert = false;
+                state.ocrBias = 0;
+                // Run genuine Tesseract OCR on the generated LCD canvas so the entire pipeline is tested end-to-end
+                runOcrOnCanvas(canvas, thumbDataUrl, data.appliance);
+            }
+
+            /* =====================================================================
+             * 5. SEVEN-SEGMENT LCD PREPROCESSING, TESSERACT OCR & SMART PARSER
+             * ===================================================================== */
+            async function runOcrOnCanvas(canvas, thumbDataUrl, suggestedAppliance = '', isReRun = false) {
+                dom.ocrLoadingOverlay.classList.remove('hidden');
+                dom.ocrProgressText.textContent = 'Bridging 7-segment LCD bars & stretching contrast...';
+                dom.ocrProgressBar.style.width = '18%';
+
+                try {
+                    // Build high-contrast Otsu thresholded + segment-bridged image for Tesseract
+                    const procCanvas = preprocessForOcr(canvas, {
+                        invert: state.ocrInvert,
+                        thresholdBias: state.ocrBias
+                    });
+                    const processedThumbUrl = createCompressedThumbnail(procCanvas);
+
+                    const worker = await Tesseract.createWorker('eng', 1, {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                const pct = Math.min(98, Math.round(25 + m.progress * 70));
+                                dom.ocrProgressBar.style.width = `${pct}%`;
+                                dom.ocrProgressText.textContent = `Reading HPAT550 segments (${Math.round(m.progress * 100)}%)...`;
+                            } else if (m.status) {
+                                dom.ocrProgressText.textContent = `${m.status}...`;
+                            }
+                        }
+                    });
+
+                    // Constrain OCR character set to valid Martindale HPAT550 screen symbols
+                    await worker.setParameters({
+                        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.<>:/()-ΩM ',
+                        tessedit_pageseg_mode: '6'
+                    });
+
+                    const { data: { text } } = await worker.recognize(procCanvas);
+                    await worker.terminate();
+
+                    dom.ocrProgressBar.style.width = '100%';
+                    const parsed = parseHpat550OcrText(text);
+                    if (suggestedAppliance) {
+                        parsed.suggestedAppliance = suggestedAppliance;
+                    }
+
+                    dom.ocrLoadingOverlay.classList.add('hidden');
+                    openVerificationModal(parsed, thumbDataUrl, processedThumbUrl, text, canvas, isReRun);
+                } catch (err) {
+                    console.error('OCR Error:', err);
+                    dom.ocrLoadingOverlay.classList.add('hidden');
+                    showToast('OCR had trouble reading image — verify readings below.', 'error');
+                    const fallbackParsed = {
+                        status: 'PASS',
+                        testType: 'Class I',
+                        earth: '0.02 Ω',
+                        insulation: '>99.9 MΩ',
+                        voltage: '500V',
+                        polarity: 'N/A',
+                        suggestedAppliance
+                    };
+                    openVerificationModal(fallbackParsed, thumbDataUrl, thumbDataUrl, '[OCR Fallback Mode]', canvas, isReRun);
+                }
+            }
+
+            /**
+             * Seven-Segment LCD Image Preprocessing Pipeline:
+             * 1. Upscales small crops (~900px) so thin LCD segments have enough pixel thickness.
+             * 2. Converts to luminance grayscale & stretches dynamic range (min-max normalisation).
+             * 3. Applies a light 3x3 box/Gaussian blur to bridge tiny gaps between 7-segment bars
+             *    (preventing '2' from breaking into disconnected strokes that look like '4').
+             * 4. Computes Otsu's optimal binary threshold (+ user contrast bias) and auto-normalises
+             *    polarity to dark-text-on-white-background for Tesseract.
+             */
+            function preprocessForOcr(sourceCanvas, options = { invert: false, thresholdBias: 0 }) {
+                const scale = sourceCanvas.width < 850 ? Math.min(2, 900 / sourceCanvas.width) : 1;
+                const w = Math.round(sourceCanvas.width * scale);
+                const h = Math.round(sourceCanvas.height * scale);
+
+                const out = document.createElement('canvas');
+                out.width = w;
+                out.height = h;
+                const ctx = out.getContext('2d');
+
+                // Slight blur during draw bridges narrow 7-segment LCD inter-bar gaps
+                ctx.filter = 'blur(0.75px)';
+                ctx.drawImage(sourceCanvas, 0, 0, w, h);
+                ctx.filter = 'none';
+
+                const imgData = ctx.getImageData(0, 0, w, h);
+                const data = imgData.data;
+                const pixelCount = w * h;
+                const gray = new Uint8Array(pixelCount);
+
+                // Step 1: Luminance grayscale & min/max discovery for contrast stretching
+                let minLum = 255;
+                let maxLum = 0;
+                for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+                    const lum = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+                    gray[p] = lum;
+                    if (lum < minLum) minLum = lum;
+                    if (lum > maxLum) maxLum = lum;
+                }
+
+                // Step 2: Contrast stretching + Histogram build for Otsu threshold
+                const range = Math.max(1, maxLum - minLum);
+                const histogram = new Int32Array(256);
+                for (let p = 0; p < pixelCount; p++) {
+                    const stretched = Math.min(255, Math.max(0, Math.round(((gray[p] - minLum) / range) * 255)));
+                    gray[p] = stretched;
+                    histogram[stretched]++;
+                }
+
+                // Step 3: Otsu's between-class variance threshold calculation
+                let sumTotal = 0;
+                for (let t = 0; t < 256; t++) sumTotal += t * histogram[t];
+
+                let sumBg = 0;
+                let weightBg = 0;
+                let maxVariance = -1;
+                let otsuThreshold = 128;
+
+                for (let t = 0; t < 256; t++) {
+                    weightBg += histogram[t];
+                    if (weightBg === 0) continue;
+                    const weightFg = pixelCount - weightBg;
+                    if (weightFg === 0) break;
+
+                    sumBg += t * histogram[t];
+                    const meanBg = sumBg / weightBg;
+                    const meanFg = (sumTotal - sumBg) / weightFg;
+                    const variance = weightBg * weightFg * (meanBg - meanFg) * (meanBg - meanFg);
+
+                    if (variance > maxVariance) {
+                        maxVariance = variance;
+                        otsuThreshold = t;
+                    }
+                }
+
+                // Apply user contrast slider bias (-45 to +45)
+                const finalThreshold = Math.min(245, Math.max(10, otsuThreshold + (options.thresholdBias || 0)));
+
+                // Step 4: Count dark pixels to auto-detect dark-mode LCD (white digits on dark screen)
+                let darkCount = 0;
+                for (let p = 0; p < pixelCount; p++) {
+                    if (gray[p] < finalThreshold) darkCount++;
+                }
+                const isDarkBackground = darkCount > pixelCount * 0.55;
+                const shouldInvert = options.invert ? !isDarkBackground : isDarkBackground;
+
+                // Step 5: Write crisp binary black-on-white image
+                for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+                    let isInk = gray[p] < finalThreshold;
+                    if (shouldInvert) isInk = !isInk;
+                    const val = isInk ? 0 : 255;
+                    data[i] = val;
+                    data[i + 1] = val;
+                    data[i + 2] = val;
+                    data[i + 3] = 255;
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+                return out;
+            }
+
+            /**
+             * Smart Regex & Line-Aware Parser tuned to Martindale HPAT550 LCD screens
+             */
+            function parseHpat550OcrText(rawText) {
+                const upper = (rawText || '').toUpperCase().replace(/\r/g, '\n');
+                const lines = upper.split('\n').map(l => l.trim()).filter(Boolean);
+
+                // 1. Overall Status: PASS or FAIL
+                let status = 'PASS';
+                if (/\bFAIL\b/.test(upper) || /F[A4][I1L]L/.test(upper)) {
+                    status = 'FAIL';
+                } else if (/\bPASS\b/.test(upper) || /P[A4]SS/.test(upper)) {
+                    status = 'PASS';
+                }
+
+                // 2. Test Type: Class I, Class II, or Lead
+                let testType = 'Class I';
+                if (/CLASS\s*(II|2|11)\b/.test(upper) || /\bCL\s*II\b/.test(upper)) {
+                    testType = 'Class II';
+                } else if (/\bLEAD\b/.test(upper) || /\bIEC\b/.test(upper) || /POLARITY/.test(upper)) {
+                    testType = 'Lead';
+                } else if (/CLASS\s*(I|1)\b/.test(upper) || /\bCL\s*I\b/.test(upper)) {
+                    testType = 'Class I';
+                }
+
+                // 3. Insulation Test Voltage (250V or 500V)
+                let voltage = '500V';
+                if (/\b250\s*V/.test(upper)) {
+                    voltage = '250V';
+                } else if (/\b500\s*V/.test(upper)) {
+                    voltage = '500V';
+                }
+
+                // 4. Insulation Resistance (>20 MΩ, >99.9 MΩ, >100 MΩ, or 0.00–99.9 MΩ)
+                let insulation = '>99.9 MΩ';
+                const insLine = lines.find(l => /INS|MΩ|MOHM|\bMO\b/.test(l)) || upper;
+                const insOverMatch = insLine.match(/(>|&GT;)\s*(20|99\.9|100|199|200|299|500)\s*(M|MQ|MO|MΩ)?/);
+                const insValMatch = insLine.match(/(\d{1,3}(?:\.\d{1,2})?)\s*(MΩ|MQ|MO|MOHM)/);
+                if (insOverMatch) {
+                    insulation = `>${insOverMatch[2]} MΩ`;
+                } else if (insValMatch) {
+                    insulation = `${insValMatch[1]} MΩ`;
+                }
+
+                // 5. Earth Continuity (0.00 to 19.99 Ω) - prioritise Earth line & preserve exact decimal
+                let earth = testType === 'Class II' ? 'N/A' : '0.02 Ω';
+                const earthLine = lines.find(l => /EARTH|BOND|Ω|OHM/.test(l) && !/MΩ|MOHM|INS/.test(l)) || '';
+                const earthLineMatch = earthLine.match(/\b(\d{1,2}\.\d{2})\b/);
+                const earthExplicitMatch = upper.match(/EARTH[^0-9N]*(\d{1,2}\.\d{2})/);
+                const ohmMatch = upper.match(/\b([01]?\d\.\d{2})\s*(Ω|OHM|Q)?\b/);
+
+                if (testType === 'Class II' && /N\/A/.test(upper)) {
+                    earth = 'N/A';
+                } else if (earthLineMatch) {
+                    earth = `${earthLineMatch[1]} Ω`;
+                } else if (earthExplicitMatch) {
+                    earth = `${earthExplicitMatch[1]} Ω`;
+                } else if (ohmMatch) {
+                    earth = `${ohmMatch[1]} Ω`;
+                }
+
+                // 6. Polarity (for IEC Lead tests)
+                let polarity = 'N/A';
+                if (testType === 'Lead') {
+                    if (/POLARITY\s*FAIL/.test(upper) || (status === 'FAIL' && /POLARITY/.test(upper))) {
+                        polarity = 'FAIL';
+                    } else {
+                        polarity = 'PASS';
+                    }
+                }
+
+                return {
+                    status,
+                    testType,
+                    earth,
+                    insulation,
+                    voltage,
+                    polarity,
+                    suggestedAppliance: ''
+                };
+            }
+
+            /* =====================================================================
+             * 6. VERIFICATION & ASSET TAGGING MODAL
+             * ===================================================================== */
+            function openVerificationModal(parsed, thumbDataUrl, processedThumbUrl, rawOcrText, sourceCanvas = null, preserveUserMeta = false) {
+                state.currentDraft = {
+                    sourceCanvas: sourceCanvas || state.currentDraft.sourceCanvas,
+                    imageDataUrl: thumbDataUrl || '',
+                    processedDataUrl: processedThumbUrl || thumbDataUrl || '',
+                    rawOcr: rawOcrText || '',
+                    status: parsed.status || 'PASS',
+                    visualCheck: preserveUserMeta ? state.currentDraft.visualCheck : 'PASS',
+                    testType: parsed.testType || 'Class I'
+                };
+
+                dom.capturedThumbnail.src = thumbDataUrl || 'https://placehold.co/320x240/0f172a/facc15?text=HPAT550';
+                dom.processedThumbnail.src = processedThumbUrl || thumbDataUrl || 'https://placehold.co/320x240/ffffff/0f172a?text=OCR+VIEW';
+                dom.rawOcrPreview.textContent = rawOcrText || 'No raw text available';
+                dom.rawOcrPreview.classList.add('hidden');
+
+                // Sync OCR tuning controls UI
+                dom.inputOcrBias.value = state.ocrBias;
+                dom.ocrBiasValue.textContent = state.ocrBias > 0 ? `+${state.ocrBias}` : `${state.ocrBias}`;
+                dom.btnToggleInvertLcd.textContent = `Invert LCD: ${state.ocrInvert ? 'ON' : 'OFF'}`;
+                dom.btnToggleInvertLcd.className = state.ocrInvert
+                    ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-yellow-400 text-slate-950 border-yellow-400 transition'
+                    : 'px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-900 text-slate-300 border-slate-700 hover:border-yellow-400 transition';
+
+                // Populate inputs (preserve typed Asset ID / Appliance / Location if user clicked Re-Read)
+                if (!preserveUserMeta) {
+                    dom.inputAssetId.value = generateNextAssetId();
+                    dom.inputAppliance.value = parsed.suggestedAppliance || '';
+                    dom.inputLocation.value = state.lastLocation || '';
+                    dom.inputNotes.value = '';
+                }
+
+                dom.inputEarth.value = parsed.earth || '0.02 Ω';
+                dom.inputInsulation.value = parsed.insulation || '>99.9 MΩ';
+                dom.inputVoltage.value = parsed.voltage || '500V';
+                dom.inputPolarity.value = parsed.polarity || 'N/A';
+
+                setModalOutcomeUI(state.currentDraft.status);
+                setModalVisualUI(state.currentDraft.visualCheck);
+                setModalTestTypeUI(state.currentDraft.testType);
+
+                dom.verifyModal.classList.remove('hidden');
+
+                // Focus appliance or location input for fast mobile workflow
+                if (!preserveUserMeta) {
+                    setTimeout(() => {
+                        if (!dom.inputAppliance.value) {
+                            dom.inputAppliance.focus();
+                        } else if (!dom.inputLocation.value) {
+                            dom.inputLocation.focus();
+                        }
+                    }, 120);
+                }
+            }
+
+            /**
+             * Updates the live Binary OCR Preview thumbnail immediately as contrast/invert changes
+             */
+            function updateLiveOcrPreviewThumbnail() {
+                if (!state.currentDraft.sourceCanvas) return;
+                const procCanvas = preprocessForOcr(state.currentDraft.sourceCanvas, {
+                    invert: state.ocrInvert,
+                    thresholdBias: state.ocrBias
+                });
+                const previewUrl = createCompressedThumbnail(procCanvas);
+                state.currentDraft.processedDataUrl = previewUrl;
+                dom.processedThumbnail.src = previewUrl;
+            }
+
+            /**
+             * Steps numeric readings (e.g. "0.04 Ω" -> "0.03 Ω" -> "0.02 Ω") by +/- 0.01 in a single tap
+             */
+            function stepNumericReading(inputEl, delta, unitSuffix, defaultStart = 0.02) {
+                const raw = inputEl.value.trim();
+                const prefixMatch = raw.match(/^(>|&gt;)?\s*(\d+(?:\.\d+)?)/i);
+                const prefix = prefixMatch && prefixMatch[1] ? '>' : '';
+                let num = prefixMatch ? parseFloat(prefixMatch[2]) : defaultStart;
+
+                if (Number.isNaN(num)) num = defaultStart;
+                num = Math.max(0, Math.round((num + delta) * 100) / 100);
+
+                // Preserve 2 decimal places for Ohms (0.02 Ω) or 1/2 decimals for MOhms
+                const formattedNum = unitSuffix === 'Ω'
+                    ? num.toFixed(2)
+                    : (num >= 10 ? num.toFixed(1) : num.toFixed(2));
+
+                inputEl.value = `${prefix}${formattedNum} ${unitSuffix}`;
+            }
+
+            function closeVerificationModal() {
+                dom.verifyModal.classList.add('hidden');
+            }
+
+            function setModalOutcomeUI(outcome) {
+                state.currentDraft.status = outcome;
+                if (outcome === 'PASS') {
+                    dom.btnOutcomePass.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-emerald-500/20 border-emerald-500 text-emerald-400';
+                    dom.btnOutcomeFail.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-slate-900 border-slate-700 text-slate-400';
+                } else {
+                    dom.btnOutcomePass.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-slate-900 border-slate-700 text-slate-400';
+                    dom.btnOutcomeFail.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-red-500/20 border-red-500 text-red-400';
+                }
+            }
+
+            function setModalVisualUI(visual) {
+                state.currentDraft.visualCheck = visual;
+                if (visual === 'PASS') {
+                    dom.btnVisualPass.className = 'px-2.5 py-1 rounded-lg font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+                    dom.btnVisualFail.className = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700';
+                } else {
+                    dom.btnVisualPass.className = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700';
+                    dom.btnVisualFail.className = 'px-2.5 py-1 rounded-lg font-bold bg-red-500/20 text-red-400 border border-red-500/40';
+                    // Automatically mark overall outcome FAIL if visual check fails
+                    setModalOutcomeUI('FAIL');
+                }
+            }
+
+            function setModalTestTypeUI(testType) {
+                state.currentDraft.testType = testType;
+                document.querySelectorAll('.testtype-btn').forEach(btn => {
+                    const isMatch = btn.dataset.testtype === testType;
+                    btn.className = isMatch
+                        ? 'testtype-btn py-2 rounded-xl text-xs font-bold border bg-yellow-400 text-slate-950 border-yellow-400'
+                        : 'testtype-btn py-2 rounded-xl text-xs font-bold border bg-slate-900 text-slate-300 border-slate-700';
+                });
+
+                // Adjust default Earth / Polarity hints sensibly
+                if (testType === 'Class II') {
+                    if (!dom.inputEarth.value || dom.inputEarth.value.includes('Ω')) {
+                        dom.inputEarth.value = 'N/A';
+                    }
+                    dom.inputPolarity.value = 'N/A';
+                } else if (testType === 'Lead') {
+                    if (dom.inputEarth.value === 'N/A') dom.inputEarth.value = '0.05 Ω';
+                    if (dom.inputPolarity.value === 'N/A') dom.inputPolarity.value = 'PASS';
+                } else {
+                    if (dom.inputEarth.value === 'N/A') dom.inputEarth.value = '0.02 Ω';
+                    dom.inputPolarity.value = 'N/A';
+                }
+            }
+
+            function handleSaveVerifiedRecord(evt) {
+                evt.preventDefault();
+
+                const assetId = dom.inputAssetId.value.trim() || generateNextAssetId();
+                const appliance = dom.inputAppliance.value.trim();
+                const location = dom.inputLocation.value.trim();
+
+                if (!appliance || !location) {
+                    showToast('Please enter both Appliance and Location.', 'error');
+                    return;
+                }
+
+                // Remember location for rapid batch testing
+                state.lastLocation = location;
+                updateBatchLocationUI();
+
+                const now = new Date();
+                const record = {
+                    id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                    timestamp: now.toISOString(),
+                    formattedDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    formattedTime: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+                    assetId,
+                    appliance,
+                    location,
+                    testType: state.currentDraft.testType,
+                    visualCheck: state.currentDraft.visualCheck,
+                    earth: dom.inputEarth.value.trim() || 'N/A',
+                    insulation: dom.inputInsulation.value.trim() || '>99.9 MΩ',
+                    voltage: dom.inputVoltage.value,
+                    polarity: dom.inputPolarity.value,
+                    status: state.currentDraft.status,
+                    notes: dom.inputNotes.value.trim(),
+                    photo: state.currentDraft.imageDataUrl
+                };
+
+                state.records.unshift(record);
+                saveToStorage();
+                updateAssetIdIndicators();
+                renderRecordsLog();
+                closeVerificationModal();
+
+                showToast(`Saved ${record.assetId} (${record.appliance}) — ${record.status}`, record.status === 'PASS' ? 'success' : 'error');
+            }
+
+            /* =====================================================================
+             * 7. RESULTS LOG RENDERING, FILTERING, EXPORT & PRINT
+             * ===================================================================== */
+            function renderRecordsLog() {
+                const total = state.records.length;
+                const passed = state.records.filter(r => r.status === 'PASS').length;
+                const failed = state.records.filter(r => r.status === 'FAIL').length;
+                const rate = total > 0 ? `${Math.round((passed / total) * 100)}%` : '--%';
+
+                dom.statTotal.textContent = total;
+                dom.statPass.textContent = passed;
+                dom.statFail.textContent = failed;
+                dom.statRate.textContent = rate;
+                dom.navBadgeCount.textContent = total;
+
+                // Apply filter & search
+                const q = state.searchQuery.toLowerCase().trim();
+                const filtered = state.records.filter(rec => {
+                    const matchesFilter = state.activeFilter === 'ALL' || rec.status === state.activeFilter;
+                    const matchesSearch = !q ||
+                        rec.assetId.toLowerCase().includes(q) ||
+                        rec.appliance.toLowerCase().includes(q) ||
+                        rec.location.toLowerCase().includes(q) ||
+                        (rec.notes && rec.notes.toLowerCase().includes(q));
+                    return matchesFilter && matchesSearch;
+                });
+
+                if (filtered.length === 0) {
+                    dom.recordsListContainer.innerHTML = `
+                        <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-8 text-center">
+                            <p class="text-sm font-bold text-slate-300 mb-1">${total === 0 ? 'No PAT results logged yet' : 'No matching records found'}</p>
+                            <p class="text-xs text-slate-500">${total === 0 ? 'Switch to "Scan Screen" to capture your first Martindale HPAT550 test.' : 'Try clearing your search or status filter.'}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                dom.recordsListContainer.innerHTML = filtered.map(rec => {
+                    const isPass = rec.status === 'PASS';
+                    const badgeClass = isPass
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                        : 'bg-red-500/20 text-red-400 border-red-500/40';
+                    const cardBorder = isPass ? 'border-slate-800' : 'border-red-500/40';
+
+                    return `
+                        <article class="bg-slate-900 border ${cardBorder} rounded-2xl p-4 shadow-md flex flex-col gap-3">
+                            <div class="flex items-start justify-between gap-2">
+                                <div>
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="font-mono font-extrabold text-sm text-yellow-400">${escapeHtml(rec.assetId)}</span>
+                                        <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(rec.testType)}</span>
+                                        <span class="text-[11px] text-slate-400">${escapeHtml(rec.formattedDate)} • ${escapeHtml(rec.formattedTime)}</span>
+                                    </div>
+                                    <h3 class="font-bold text-base text-white mt-1">${escapeHtml(rec.appliance)}</h3>
+                                    <p class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                                        <span>📍</span> ${escapeHtml(rec.location)}
+                                    </p>
+                                </div>
+                                <span class="px-3 py-1 rounded-xl font-extrabold text-xs border ${badgeClass} shrink-0">
+                                    ${escapeHtml(rec.status)}
+                                </span>
+                            </div>
+
+                            <!-- Measurements Strip -->
+                            <div class="grid grid-cols-3 gap-2 bg-slate-950/80 rounded-xl p-2.5 border border-slate-800/80 font-mono text-xs">
+                                <div>
+                                    <span class="text-[10px] text-slate-500 block">EARTH BOND</span>
+                                    <span class="font-bold text-slate-200">${escapeHtml(rec.earth)}</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] text-slate-500 block">INSULATION</span>
+                                    <span class="font-bold text-slate-200">${escapeHtml(rec.insulation)}</span>
+                                </div>
+                                <div>
+                                    <span class="text-[10px] text-slate-500 block">VOLT / POL</span>
+                                    <span class="font-bold text-slate-200">${escapeHtml(rec.voltage)} / ${escapeHtml(rec.polarity)}</span>
+                                </div>
+                            </div>
+
+                            ${rec.notes ? `<p class="text-xs text-slate-400 italic bg-slate-950/40 px-3 py-1.5 rounded-lg border border-slate-800/60">Note: ${escapeHtml(rec.notes)}</p>` : ''}
+
+                            <!-- Record Card Footer Actions -->
+                            <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs">
+                                <span class="text-slate-400">Visual Check: <strong class="${rec.visualCheck === 'PASS' ? 'text-emerald-400' : 'text-red-400'}">${escapeHtml(rec.visualCheck)}</strong></span>
+                                <div class="flex items-center gap-2">
+                                    ${rec.photo ? `<button type="button" data-action="view-photo" data-id="${rec.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-yellow-400 font-semibold transition">View LCD Photo</button>` : ''}
+                                    <button type="button" data-action="delete-rec" data-id="${rec.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800/70 hover:bg-red-950/70 text-slate-400 hover:text-red-400 font-semibold transition">Delete</button>
+                                </div>
+                            </div>
+                        </article>
+                    `;
+                }).join('');
+            }
+
+            /**
+             * Exports stored PAT results to a compliance-ready CSV file
+             */
+            function exportRecordsToCsv() {
+                if (state.records.length === 0) {
+                    showToast('No records to export yet.', 'error');
+                    return;
+                }
+
+                const headers = [
+                    'Asset ID',
+                    'Appliance Description',
+                    'Location / Room',
+                    'Test Type',
+                    'Visual Check',
+                    'Earth Continuity (Ohms)',
+                    'Insulation Resistance (MOhms)',
+                    'Test Voltage',
+                    'Lead Polarity',
+                    'Overall Result',
+                    'Date',
+                    'Time',
+                    'Notes'
+                ];
+
+                const csvRows = [headers.join(',')];
+                state.records.forEach(r => {
+                    const row = [
+                        r.assetId,
+                        r.appliance,
+                        r.location,
+                        r.testType,
+                        r.visualCheck,
+                        r.earth,
+                        r.insulation,
+                        r.voltage,
+                        r.polarity,
+                        r.status,
+                        r.formattedDate,
+                        r.formattedTime,
+                        r.notes || ''
+                    ].map(val => `"${String(val).replace(/"/g, '""')}"`);
+                    csvRows.push(row.join(','));
+                });
+
+                const csvString = csvRows.join('\r\n');
+                const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const dateStamp = new Date().toISOString().slice(0, 10);
+                link.href = url;
+                link.download = `PAT-Register-HPAT550-${dateStamp}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                showToast(`Exported ${state.records.length} PAT records to CSV.`, 'success');
+            }
+
+            /**
+             * Populates the formal printable PAT Certificate table and invokes browser print / Save PDF
+             */
+            function triggerPrintReport() {
+                if (state.records.length === 0) {
+                    showToast('Log at least one PAT test before printing a report.', 'error');
+                    return;
+                }
+
+                const total = state.records.length;
+                const passed = state.records.filter(r => r.status === 'PASS').length;
+                const failed = total - passed;
+
+                dom.printReportDate.textContent = new Date().toLocaleString('en-GB');
+                dom.printSummaryText.textContent = `Total: ${total} | Passed: ${passed} | Failed: ${failed}`;
+
+                dom.printTableBody.innerHTML = state.records.map(r => `
+                    <tr>
+                        <td style="font-family:monospace; font-weight:bold;">${escapeHtml(r.assetId)}</td>
+                        <td>${escapeHtml(r.appliance)}</td>
+                        <td>${escapeHtml(r.location)}</td>
+                        <td>${escapeHtml(r.testType)}</td>
+                        <td>${escapeHtml(r.visualCheck)}</td>
+                        <td style="font-family:monospace;">${escapeHtml(r.earth)}</td>
+                        <td style="font-family:monospace;">${escapeHtml(r.insulation)}</td>
+                        <td>${escapeHtml(r.voltage)} / ${escapeHtml(r.polarity)}</td>
+                        <td style="font-weight:bold; color:${r.status === 'PASS' ? '#047857' : '#b91c1c'};">${escapeHtml(r.status)}</td>
+                        <td>${escapeHtml(r.formattedDate)} ${escapeHtml(r.formattedTime)}</td>
+                    </tr>
+                `).join('');
+
+                window.print();
+            }
+
+            /* =====================================================================
+             * 8. NAVIGATION & EVENT BINDINGS
+             * ===================================================================== */
+            function switchTab(tabName) {
+                if (tabName === 'scan') {
+                    dom.tabScan.classList.remove('hidden');
+                    dom.tabLog.classList.add('hidden');
+                    dom.navBtnScan.className = 'py-2.5 px-4 rounded-xl bg-yellow-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow transition';
+                    dom.navBtnLog.className = 'py-2.5 px-4 rounded-xl bg-slate-800/80 text-slate-300 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition';
+                } else {
+                    stopLiveAutoScan();
+                    dom.tabScan.classList.add('hidden');
+                    dom.tabLog.classList.remove('hidden');
+                    dom.navBtnLog.className = 'py-2.5 px-4 rounded-xl bg-yellow-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow transition';
+                    dom.navBtnScan.className = 'py-2.5 px-4 rounded-xl bg-slate-800/80 text-slate-300 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition';
+                    renderRecordsLog();
+                }
+            }
+
+            function bindEvents() {
+                // Bottom Navigation
+                dom.navBtnScan.addEventListener('click', () => switchTab('scan'));
+                dom.navBtnLog.addEventListener('click', () => switchTab('log'));
+
+                // Camera & Capture Controls
+                dom.btnStartCamera.addEventListener('click', () => startCameraStream(false));
+                dom.btnCaptureFrame.addEventListener('click', captureFromLiveVideo);
+                dom.btnToggleLiveScan.addEventListener('click', toggleLiveAutoScan);
+                dom.filePhotoInput.addEventListener('change', (e) => {
+                    if (e.target.files && e.target.files[0]) {
+                        handleImageFileUpload(e.target.files[0]);
+                        e.target.value = '';
+                    }
+                });
+                dom.btnDemoScan.addEventListener('click', () => {
+                    stopLiveAutoScan();
+                    runSimulatedHpat550Scan(dom.demoPresetSelect.value);
+                });
+
+                // Quick Batch Location Modal
+                dom.btnQuickSetLocation.addEventListener('click', () => {
+                    dom.batchLocationInput.value = state.lastLocation || '';
+                    dom.locationPromptModal.classList.remove('hidden');
+                    setTimeout(() => dom.batchLocationInput.focus(), 80);
+                });
+                dom.btnLocationCancel.addEventListener('click', () => dom.locationPromptModal.classList.add('hidden'));
+                dom.btnLocationSave.addEventListener('click', () => {
+                    state.lastLocation = dom.batchLocationInput.value.trim();
+                    saveToStorage();
+                    updateBatchLocationUI();
+                    dom.locationPromptModal.classList.add('hidden');
+                    showToast('Batch location updated.', 'success');
+                });
+
+                // Verification Modal Controls
+                dom.btnCloseVerifyModal.addEventListener('click', closeVerificationModal);
+                dom.btnCancelVerify.addEventListener('click', closeVerificationModal);
+                dom.btnOutcomePass.addEventListener('click', () => setModalOutcomeUI('PASS'));
+                dom.btnOutcomeFail.addEventListener('click', () => setModalOutcomeUI('FAIL'));
+                dom.btnVisualPass.addEventListener('click', () => setModalVisualUI('PASS'));
+                dom.btnVisualFail.addEventListener('click', () => setModalVisualUI('FAIL'));
+                dom.btnAutoIncrementId.addEventListener('click', () => {
+                    dom.inputAssetId.value = generateNextAssetId();
+                });
+                dom.btnToggleRawOcr.addEventListener('click', () => {
+                    dom.rawOcrPreview.classList.toggle('hidden');
+                });
+
+                // Live LCD Threshold, Invert & Re-OCR Controls
+                dom.inputOcrBias.addEventListener('input', (e) => {
+                    state.ocrBias = parseInt(e.target.value, 10) || 0;
+                    dom.ocrBiasValue.textContent = state.ocrBias > 0 ? `+${state.ocrBias}` : `${state.ocrBias}`;
+                    updateLiveOcrPreviewThumbnail();
+                });
+                dom.btnToggleInvertLcd.addEventListener('click', () => {
+                    state.ocrInvert = !state.ocrInvert;
+                    dom.btnToggleInvertLcd.textContent = `Invert LCD: ${state.ocrInvert ? 'ON' : 'OFF'}`;
+                    dom.btnToggleInvertLcd.className = state.ocrInvert
+                        ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-yellow-400 text-slate-950 border-yellow-400 transition'
+                        : 'px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-900 text-slate-300 border-slate-700 hover:border-yellow-400 transition';
+                    updateLiveOcrPreviewThumbnail();
+                });
+                dom.btnReRunOcr.addEventListener('click', () => {
+                    if (!state.currentDraft.sourceCanvas) return;
+                    runOcrOnCanvas(state.currentDraft.sourceCanvas, state.currentDraft.imageDataUrl, '', true);
+                });
+
+                // One-Tap +/- 0.01 Micro-Adjustment Steppers
+                dom.btnEarthMinus.addEventListener('click', () => stepNumericReading(dom.inputEarth, -0.01, 'Ω', 0.02));
+                dom.btnEarthPlus.addEventListener('click', () => stepNumericReading(dom.inputEarth, 0.01, 'Ω', 0.02));
+                dom.btnInsMinus.addEventListener('click', () => stepNumericReading(dom.inputInsulation, -0.01, 'MΩ', 99.9));
+                dom.btnInsPlus.addEventListener('click', () => stepNumericReading(dom.inputInsulation, 0.01, 'MΩ', 99.9));
+
+                // Appliance Preset Chips
+                document.querySelectorAll('.preset-chip').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        dom.inputAppliance.value = chip.dataset.preset;
+                        if (chip.dataset.class) {
+                            setModalTestTypeUI(chip.dataset.class);
+                        }
+                    });
+                });
+
+                // Test Class Buttons
+                document.querySelectorAll('.testtype-btn').forEach(btn => {
+                    btn.addEventListener('click', () => setModalTestTypeUI(btn.dataset.testtype));
+                });
+
+                // Save Verified Record
+                dom.verifyForm.addEventListener('submit', handleSaveVerifiedRecord);
+
+                // Results Log Search & Filters
+                dom.searchRecordsInput.addEventListener('input', (e) => {
+                    state.searchQuery = e.target.value;
+                    renderRecordsLog();
+                });
+
+                document.querySelectorAll('.filter-pill').forEach(pill => {
+                    pill.addEventListener('click', () => {
+                        state.activeFilter = pill.dataset.filter;
+                        document.querySelectorAll('.filter-pill').forEach(p => {
+                            const active = p.dataset.filter === state.activeFilter;
+                            p.className = active
+                                ? 'filter-pill flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold bg-yellow-400 text-slate-950 transition'
+                                : 'filter-pill flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition';
+                        });
+                        renderRecordsLog();
+                    });
+                });
+
+                // Delegated Card Actions (View Photo / Delete Record)
+                dom.recordsListContainer.addEventListener('click', (e) => {
+                    const btn = e.target.closest('button[data-action]');
+                    if (!btn) return;
+                    const id = btn.dataset.id;
+                    const record = state.records.find(r => r.id === id);
+                    if (!record) return;
+
+                    if (btn.dataset.action === 'view-photo') {
+                        dom.photoPreviewTitle.textContent = `${record.assetId} — ${record.appliance}`;
+                        dom.photoPreviewImg.src = record.photo;
+                        dom.photoPreviewModal.classList.remove('hidden');
+                    } else if (btn.dataset.action === 'delete-rec') {
+                        showConfirmDialog(
+                            `Delete ${record.assetId}?`,
+                            `Remove ${record.appliance} (${record.location}) from the PAT log?`,
+                            () => {
+                                state.records = state.records.filter(r => r.id !== id);
+                                saveToStorage();
+                                updateAssetIdIndicators();
+                                renderRecordsLog();
+                                showToast(`Deleted ${record.assetId}.`, 'info');
+                            }
+                        );
+                    }
+                });
+
+                dom.btnClosePhotoPreview.addEventListener('click', () => {
+                    dom.photoPreviewModal.classList.add('hidden');
+                });
+
+                // Export, Print & Clear All
+                dom.btnExportCsv.addEventListener('click', exportRecordsToCsv);
+                dom.btnPrintReport.addEventListener('click', triggerPrintReport);
+                dom.btnClearAllTrigger.addEventListener('click', () => {
+                    if (state.records.length === 0) {
+                        showToast('Log is already empty.', 'info');
+                        return;
+                    }
+                    showConfirmDialog(
+                        'Clear All PAT Records?',
+                        `This will permanently delete all ${state.records.length} logged test records from this device.`,
+                        () => {
+                            state.records = [];
+                            saveToStorage();
+                            updateAssetIdIndicators();
+                            renderRecordsLog();
+                            showToast('All PAT records cleared.', 'info');
+                        }
+                    );
+                });
+            }
+
+            // Boot App on DOM Ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+</body>
+</html>
