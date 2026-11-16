@@ -114,20 +114,28 @@
         <!-- ==================== TAB 1: SCAN SCREEN VIEW ==================== -->
         <section id="tabScan" class="p-4 flex flex-col gap-4">
             
-            <!-- How-to hint -->
-            <div class="bg-slate-900 border-2 border-slate-800 rounded-2xl p-6 flex flex-col items-center text-center gap-2">
-                <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-yellow-400">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
+            <!-- Camera preview (viewfinder) -->
+            <div class="flex flex-col gap-2">
+                <div class="relative w-full aspect-[4/3] bg-slate-900 rounded-2xl overflow-hidden border-2 border-slate-800 flex items-center justify-center">
+                    <video id="cameraVideo" class="hidden absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
+                    <!-- Shown until the camera is running (or if it is blocked) -->
+                    <div id="cameraPlaceholder" class="flex flex-col items-center text-center gap-1.5 p-6">
+                        <h2 class="font-bold text-lg text-white">Photograph the HPAT550 result screen</h2>
+                        <p id="cameraStatusText" class="text-sm text-slate-400">Starting camera...</p>
+                    </div>
+                    <!-- Framing guide -->
+                    <div id="viewfinderGuide" class="hidden pointer-events-none absolute inset-[8%] rounded-xl">
+                        <div class="absolute -top-0.5 -left-0.5 w-8 h-8 border-t-4 border-l-4 border-yellow-400 rounded-tl-lg"></div>
+                        <div class="absolute -top-0.5 -right-0.5 w-8 h-8 border-t-4 border-r-4 border-yellow-400 rounded-tr-lg"></div>
+                        <div class="absolute -bottom-0.5 -left-0.5 w-8 h-8 border-b-4 border-l-4 border-yellow-400 rounded-bl-lg"></div>
+                        <div class="absolute -bottom-0.5 -right-0.5 w-8 h-8 border-b-4 border-r-4 border-yellow-400 rounded-br-lg"></div>
+                        <span class="absolute bottom-2 left-1/2 -translate-x-1/2 bg-slate-950/80 text-xs font-bold text-slate-200 px-2 py-0.5 rounded whitespace-nowrap">Fill the frame with the tester's screen</span>
+                    </div>
                 </div>
-                <h2 class="font-bold text-lg text-white">Photograph the HPAT550 result screen</h2>
-                <p class="text-sm text-slate-400">Fill the photo with the tester's screen. Avoid glare.</p>
-                <p id="aiModeBadge" class="text-xs font-bold text-slate-500">Reader: offline</p>
+                <p id="aiModeBadge" class="text-xs font-bold text-slate-500 text-center">Reader: offline</p>
             </div>
 
-            <!-- Primary capture control: one big button (opens the phone camera) -->
+            <!-- Primary capture control: one big button (captures the preview; phone camera app if no preview) -->
             <button id="btnCaptureFrame" type="button" class="w-full py-8 px-4 rounded-3xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.99] text-slate-950 font-extrabold text-2xl shadow-lg shadow-yellow-400/20 transition flex items-center justify-center gap-3 cursor-pointer">
                 <svg class="w-9 h-9 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
@@ -572,6 +580,8 @@
                 ocrInvert: false,
                 ocrBias: 0,
                 verifyHistoryPushed: false,
+                mediaStream: null,
+                cameraStarting: false,
                 openAiKey: '',
                 openAiModel: '',
                 editingRecordId: null,
@@ -664,6 +674,10 @@
                 btnEditReadingsChevron: document.getElementById('btnEditReadingsChevron'),
                 readingsEditor: document.getElementById('readingsEditor'),
                 aiModeBadge: document.getElementById('aiModeBadge'),
+                cameraVideo: document.getElementById('cameraVideo'),
+                cameraPlaceholder: document.getElementById('cameraPlaceholder'),
+                cameraStatusText: document.getElementById('cameraStatusText'),
+                viewfinderGuide: document.getElementById('viewfinderGuide'),
                 aiStatusText: document.getElementById('aiStatusText'),
                 inputOpenAiKey: document.getElementById('inputOpenAiKey'),
                 inputOpenAiModel: document.getElementById('inputOpenAiModel'),
@@ -689,6 +703,7 @@
                 updateAiStatusUI();
                 renderRecordsLog();
                 bindEvents();
+                startCamera();
             }
 
             /** Shows whether AI reading is on, on the landing page and in More options */
@@ -843,15 +858,97 @@
             }
 
             /* =====================================================================
-             * 3. PHOTO CAPTURE (phone's own camera via file input)
+             * 3. CAMERA PREVIEW & PHOTO CAPTURE
              * ===================================================================== */
 
+            /** Starts the rear camera preview. On failure, TAKE PICTURE uses the phone's camera app. */
+            async function startCamera() {
+                if (state.mediaStream || state.cameraStarting) return;
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    dom.cameraStatusText.textContent = 'No camera preview on this browser — TAKE PICTURE opens your camera app.';
+                    return;
+                }
+                state.cameraStarting = true;
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } },
+                        audio: false
+                    });
+                    // The user may have moved on (log tab / check screen) while permission was pending
+                    if (!cameraShouldRun()) {
+                        stream.getTracks().forEach(tr => tr.stop());
+                        return;
+                    }
+                    state.mediaStream = stream;
+                    dom.cameraVideo.srcObject = stream;
+                    dom.cameraVideo.classList.remove('hidden');
+                    dom.viewfinderGuide.classList.remove('hidden');
+                    dom.cameraPlaceholder.classList.add('hidden');
+                } catch (err) {
+                    console.warn('Camera preview unavailable:', err);
+                    dom.cameraStatusText.textContent = 'Camera preview blocked — TAKE PICTURE opens your camera app.';
+                } finally {
+                    state.cameraStarting = false;
+                }
+            }
+
+            /** Stops the camera (saves battery while checking a result or viewing the log) */
+            function stopCamera() {
+                if (state.mediaStream) {
+                    state.mediaStream.getTracks().forEach(tr => tr.stop());
+                    state.mediaStream = null;
+                }
+                dom.cameraVideo.srcObject = null;
+                dom.cameraVideo.classList.add('hidden');
+                dom.viewfinderGuide.classList.add('hidden');
+                dom.cameraPlaceholder.classList.remove('hidden');
+                dom.cameraStatusText.textContent = 'Starting camera...';
+            }
+
+            /** Camera runs only on the Scan tab, with no check screen open, while the app is visible */
+            function cameraShouldRun() {
+                return !document.hidden
+                    && !dom.tabScan.classList.contains('hidden')
+                    && dom.verifyModal.classList.contains('hidden');
+            }
+
+            function syncCamera() {
+                if (cameraShouldRun()) startCamera();
+                else stopCamera();
+            }
+
             /**
-             * Opens the phone's camera app. A full-resolution photo reads far more reliably
-             * than a frame grabbed from live video.
+             * TAKE PICTURE: capture from the preview. Uses a full-resolution still where the browser
+             * supports it (Android Chrome), otherwise the current video frame. With no preview running,
+             * opens the phone's camera app instead.
              */
-            function takePicture() {
-                dom.filePhotoInput.click();
+            async function takePicture() {
+                const video = dom.cameraVideo;
+                if (!state.mediaStream || video.readyState < 2 || !video.videoWidth) {
+                    dom.filePhotoInput.click();
+                    return;
+                }
+
+                if ('ImageCapture' in window) {
+                    try {
+                        const track = state.mediaStream.getVideoTracks()[0];
+                        const blob = await new ImageCapture(track).takePhoto();
+                        stopCamera();
+                        handleImageFileUpload(blob);
+                        return;
+                    } catch (err) {
+                        console.warn('Full-resolution still failed, using video frame:', err);
+                    }
+                }
+
+                const vw = video.videoWidth;
+                const vh = video.videoHeight;
+                const frame = document.createElement('canvas');
+                frame.width = vw;
+                frame.height = vh;
+                frame.getContext('2d').drawImage(video, 0, 0, vw, vh);
+                stopCamera();
+                processCapturedImage(frame, vw, vh);
             }
 
 
@@ -864,38 +961,46 @@
                 reader.onload = function (evt) {
                     const img = new Image();
                     img.onload = function () {
-                        // Scale down excessively huge mobile camera photos for fast OCR
-                        const maxDim = 1600;
-                        let w = img.width;
-                        let h = img.height;
-                        if (w > maxDim || h > maxDim) {
-                            const ratio = Math.min(maxDim / w, maxDim / h);
-                            w = Math.round(w * ratio);
-                            h = Math.round(h * ratio);
-                        }
-                        const canvas = dom.captureCanvas;
-                        canvas.width = w;
-                        canvas.height = h;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, w, h);
-
-                        // Separate 1100px copy drawn straight from the photo for the offline reader,
-                        // which is tuned for (and reads best at) that size
-                        const offR = Math.min(1, 1100 / Math.max(img.width, img.height));
-                        const offline = document.createElement('canvas');
-                        offline.width = Math.round(img.width * offR);
-                        offline.height = Math.round(img.height * offR);
-                        offline.getContext('2d').drawImage(img, 0, 0, offline.width, offline.height);
-                        canvas.offlineCanvas = offline;
-
-                        const thumbDataUrl = createCompressedThumbnail(canvas);
-                        state.ocrInvert = false;
-                        state.ocrBias = 0;
-                        runOcrOnCanvas(canvas, thumbDataUrl);
+                        processCapturedImage(img, img.width, img.height);
                     };
                     img.src = evt.target.result;
                 };
                 reader.readAsDataURL(file);
+            }
+
+            /**
+             * Shared by camera-app photos, uploads and preview captures: makes a 1600px copy (AI reader)
+             * and a separate 1100px copy (offline reader), then reads the screen.
+             */
+            function processCapturedImage(source, srcW, srcH) {
+                const img = source;
+                const maxDim = 1600;
+                let w = srcW;
+                let h = srcH;
+                if (w > maxDim || h > maxDim) {
+                    const ratio = Math.min(maxDim / w, maxDim / h);
+                    w = Math.round(w * ratio);
+                    h = Math.round(h * ratio);
+                }
+                const canvas = dom.captureCanvas;
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+
+                // Separate 1100px copy drawn straight from the photo for the offline reader,
+                // which is tuned for (and reads best at) that size
+                const offR = Math.min(1, 1100 / Math.max(srcW, srcH));
+                const offline = document.createElement('canvas');
+                offline.width = Math.round(srcW * offR);
+                offline.height = Math.round(srcH * offR);
+                offline.getContext('2d').drawImage(img, 0, 0, offline.width, offline.height);
+                canvas.offlineCanvas = offline;
+
+                const thumbDataUrl = createCompressedThumbnail(canvas);
+                state.ocrInvert = false;
+                state.ocrBias = 0;
+                runOcrOnCanvas(canvas, thumbDataUrl);
             }
 
             /**
@@ -1755,6 +1860,7 @@ Rules:
                     state.verifyHistoryPushed = true;
                 }
                 dom.verifyModal.classList.remove('hidden');
+                syncCamera();
                 // Scroll to the top so the photo and readings are seen first (no auto-focus: keyboard would hide them)
                 dom.verifyForm.scrollTop = 0;
             }
@@ -1842,6 +1948,7 @@ Rules:
             function closeVerificationModal() {
                 dom.verifyModal.classList.add('hidden');
                 state.editingRecordId = null;
+                syncCamera();
                 // Remove the history entry we added on open (the popstate handler ignores this)
                 if (state.verifyHistoryPushed) {
                     state.verifyHistoryPushed = false;
@@ -2213,7 +2320,9 @@ Rules:
                     dom.tabLog.classList.add('hidden');
                     dom.navBtnScan.className = 'py-2.5 px-4 rounded-xl bg-yellow-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow transition';
                     dom.navBtnLog.className = 'py-2.5 px-4 rounded-xl bg-slate-800/80 text-slate-300 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition';
+                    syncCamera();
                 } else {
+                    stopCamera();
                     dom.tabScan.classList.add('hidden');
                     dom.tabLog.classList.remove('hidden');
                     dom.navBtnLog.className = 'py-2.5 px-4 rounded-xl bg-yellow-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow transition';
@@ -2230,8 +2339,12 @@ Rules:
                         dom.verifyModal.classList.add('hidden');
                         showToast(state.editingRecordId ? 'Changes discarded.' : 'Scan discarded.', 'info');
                         state.editingRecordId = null;
+                        syncCamera();
                     }
                 });
+
+                // Pause the camera when the app goes to the background
+                document.addEventListener('visibilitychange', syncCamera);
 
                 // Bottom Navigation
                 dom.navBtnScan.addEventListener('click', () => switchTab('scan'));

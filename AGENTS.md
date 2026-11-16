@@ -25,9 +25,9 @@ Header: Brand badge, IET CoP 5th Ed tag, and live Next Tag (#headerNextAssetId, 
 
 Tab 1 — Scan Screen (#tabScan):
 
-Short how-to hint card. There is no in-app camera view or Live Read (removed: low-res video frames read unreliably).
+Camera preview (#cameraVideo, #viewfinderGuide corner frame, #cameraPlaceholder / #cameraStatusText when blocked) plus the reader badge (#aiModeBadge). No Live Read (continuous OCR was removed).
 
-One big TAKE PICTURE button (#btnCaptureFrame) that opens the phone's own camera via #filePhotoInput (capture="environment") for a full-resolution photo. A collapsed "More options" holds photo upload, Demo Scan (#btnDemoScan + #demoPresetSelect) and the batch location card. Swipe-back / Android back on the check screen discards the scan (history.pushState + popstate).
+One big TAKE PICTURE button (#btnCaptureFrame): captures from the preview (ImageCapture.takePhoto full-res still where supported, e.g. Android Chrome; otherwise the current video frame). If the preview isn't running (blocked/unsupported) it opens the phone's camera app via #filePhotoInput (capture="environment"). A collapsed "More options" holds photo upload, Demo Scan (#btnDemoScan + #demoPresetSelect) and the batch location card. Swipe-back / Android back on the check screen discards the scan (history.pushState + popstate).
 
 Sticky batch location card (#currentBatchLocationDisplay).
 
@@ -53,7 +53,7 @@ state & dom: Central state object and cached DOM references.
 
 Storage (loadFromStorage, saveToStorage): Persists records in localStorage under pat_snap_550_records_v1 and sticky room location under pat_snap_550_last_location_v1. Includes automatic thumbnail pruning if localStorage quota is exceeded.
 
-Capture (takePicture, handleImageFileUpload): opens the native camera, scales the photo to max 1100px, then runs OCR once. PASS/FAIL is detected by colour (detectStatusByColour: tall green/red blob on the cropped screen) and passed to the parser.
+Capture (startCamera/stopCamera/syncCamera, takePicture, handleImageFileUpload, processCapturedImage): the camera runs only on the Scan tab, with no check screen open, while the page is visible. processCapturedImage makes a 1600px copy (AI) and a 1100px copy (offline), then reads once. AI reading was verified 6/6 correct on example photos downscaled to 1280px and 1920px (video-frame sizes). PASS/FAIL is detected by colour (detectStatusByColour: tall green/red blob on the cropped screen) and passed to the parser.
 
 Screen facts (from real photos): the HPAT550 has a colour TFT screen, NOT a 7-segment LCD. Dark mixed-case text on white, e.g. "250V", "IEC lead test [interim] result" / "Class I test result", "Earth cont. RPE: 0.02Ω" (or ">20Ω", or "-" = not tested), "Insulation RISO: >100MΩ", "Polarity: Correct", a big green PASS / red FAIL (absent on interim screens), and a limits line "RPE ≤0.1Ω, RISO ≥1MΩ" that must never be read as a reading.
 
