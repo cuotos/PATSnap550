@@ -36,16 +36,7 @@
         }
     </script>
     <style>
-        /* Custom animations and print styles */
-        @keyframes scanline {
-            0% { top: 4%; opacity: 0.2; }
-            50% { opacity: 1; }
-            100% { top: 94%; opacity: 0.2; }
-        }
-        .animate-scanline {
-            animation: scanline 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-        }
-        
+        /* Print styles */
         /* Hide scrollbars cleanly where needed */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
@@ -123,108 +114,26 @@
         <!-- ==================== TAB 1: SCAN SCREEN VIEW ==================== -->
         <section id="tabScan" class="p-4 flex flex-col gap-4">
             
-            <!-- Camera / Viewfinder Card -->
-            <div class="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-slate-900 rounded-2xl overflow-hidden border-2 border-slate-800 shadow-2xl flex items-center justify-center">
-                
-                <!-- Live Camera Video Stream -->
-                <video id="cameraVideo" class="w-full h-full object-cover hidden" autoplay playsinline muted></video>
-                
-                <!-- Fallback / Inactive Camera Placeholder -->
-                <div id="cameraPlaceholder" class="flex flex-col items-center justify-center text-center p-6 max-w-sm">
-                    <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-3 text-yellow-400">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        </svg>
-                    </div>
-                    <h2 id="cameraStatusTitle" class="font-bold text-base text-white mb-1">Ready to Scan HPAT550 LCD</h2>
-                    <p id="cameraStatusDesc" class="text-xs text-slate-400 mb-4 leading-relaxed">
-                        Align the Martindale HPAT550 colour display inside the yellow target box, or use a photo / demo scan below.
-                    </p>
-                    <button id="btnStartCamera" type="button" class="px-5 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.98] text-slate-950 font-bold text-sm shadow-lg shadow-yellow-400/20 transition flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                        </svg>
-                        Enable Rear Camera
-                    </button>
-                </div>
-
-                <!-- Precision Martindale HPAT550 LCD Alignment Overlay -->
-                <div id="viewfinderOverlay" class="pointer-events-none absolute inset-0 flex items-center justify-center p-4 sm:p-8">
-                    <!-- Darkened surrounding vignette -->
-                    <div id="reticleBox" class="relative w-[84%] max-w-[360px] aspect-[4/3] rounded-xl border-2 border-yellow-400/80 shadow-[0_0_0_9999px_rgba(2,6,23,0.62)] transition-all">
-                        
-                        <!-- Glowing Corner Brackets -->
-                        <div class="absolute -top-1 -left-1 w-7 h-7 border-t-4 border-l-4 border-yellow-400 rounded-tl-lg"></div>
-                        <div class="absolute -top-1 -right-1 w-7 h-7 border-t-4 border-r-4 border-yellow-400 rounded-tr-lg"></div>
-                        <div class="absolute -bottom-1 -left-1 w-7 h-7 border-b-4 border-l-4 border-yellow-400 rounded-bl-lg"></div>
-                        <div class="absolute -bottom-1 -right-1 w-7 h-7 border-b-4 border-r-4 border-yellow-400 rounded-br-lg"></div>
-
-                        <!-- Top Header Badge inside Reticle -->
-                        <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-yellow-400 text-slate-950 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow flex items-center gap-1.5 whitespace-nowrap">
-                            <span id="liveScanPulseDot" class="hidden w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-                            <span id="reticleHeaderLabel">Martindale HPAT550 LCD</span>
-                        </div>
-
-                        <!-- Internal Alignment Guides / Real-Time Live OCR HUD -->
-                        <div class="w-full h-full flex flex-col justify-between p-3 text-[10px] font-mono text-yellow-300/70">
-                            <!-- Top Status Bar Guide (PASS / FAIL) -->
-                            <div id="hudStatusBar" class="border border-dashed border-emerald-400/50 bg-slate-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors">
-                                <span id="hudStatusText" class="font-bold text-sm text-slate-200">STATUS: --</span>
-                                <span id="hudClassText" class="font-bold text-yellow-300">CLASS I / II / LEAD</span>
-                            </div>
-
-                            <!-- Middle Readings Guide (Earth Continuity & Insulation) -->
-                            <div class="grid grid-cols-2 gap-2 my-auto">
-                                <div class="border border-dashed border-yellow-400/50 bg-slate-950/65 backdrop-blur-[2px] rounded-lg p-1.5 text-center">
-                                    <span class="block text-[9px] text-slate-300/90">EARTH BOND</span>
-                                    <span id="hudEarthValue" class="font-extrabold text-xl sm:text-2xl text-yellow-300 tracking-tight">--</span>
-                                </div>
-                                <div class="border border-dashed border-yellow-400/50 bg-slate-950/65 backdrop-blur-[2px] rounded-lg p-1.5 text-center">
-                                    <span class="block text-[9px] text-slate-300/90">INSULATION</span>
-                                    <span id="hudInsValue" class="font-extrabold text-xl sm:text-2xl text-yellow-300 tracking-tight">--</span>
-                                </div>
-                            </div>
-
-                            <!-- Bottom Guide -->
-                            <div id="hudFooterTip" class="text-center text-[9px] text-slate-200 bg-slate-950/65 rounded py-0.5 px-2 truncate">
-                                Keep screen flat &amp; avoid glare
-                            </div>
-                        </div>
-
-                        <!-- Animated Laser Scanline -->
-                        <div class="animate-scanline absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_12px_#facc15]"></div>
-                    </div>
-                </div>
-
-                <!-- OCR Processing Overlay Spinner -->
-                <div id="ocrLoadingOverlay" class="hidden absolute inset-0 z-20 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
-                    <div class="w-14 h-14 rounded-full border-4 border-slate-700 border-t-yellow-400 animate-spin mb-4"></div>
-                    <h3 class="font-bold text-base text-white mb-1">Reading HPAT550 Screen...</h3>
-                    <p id="ocrProgressText" class="text-xs font-mono text-yellow-400 mb-3">Initialising OCR engine...</p>
-                    <div class="w-56 h-2 bg-slate-800 rounded-full overflow-hidden">
-                        <div id="ocrProgressBar" class="h-full bg-yellow-400 transition-all duration-200" style="width: 15%"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Primary Capture Controls: one big button + Live Read toggle -->
-            <div class="flex flex-col gap-3">
-                <!-- Take Picture (falls back to native camera if live stream unavailable) -->
-                <button id="btnCaptureFrame" type="button" class="w-full py-7 px-4 rounded-3xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.99] text-slate-950 font-extrabold text-2xl shadow-lg shadow-yellow-400/20 transition flex items-center justify-center gap-3 cursor-pointer">
-                    <svg class="w-9 h-9 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <!-- How-to hint -->
+            <div class="bg-slate-900 border-2 border-slate-800 rounded-2xl p-6 flex flex-col items-center text-center gap-2">
+                <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-yellow-400">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
-                    <span id="btnCaptureFrameLabel">TAKE PICTURE</span>
-                </button>
-
-                <!-- Real-Time Continuous Live OCR Toggle -->
-                <button id="btnToggleLiveScan" type="button" disabled title="Continuously read HPAT550 numbers in real time" class="w-full py-3.5 px-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-base transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed">
-                    <span id="liveScanToggleTitle">LIVE READ</span>
-                    <span id="liveScanToggleState" class="text-xs font-mono text-slate-400">OFF</span>
-                </button>
+                </div>
+                <h2 class="font-bold text-lg text-white">Photograph the HPAT550 result screen</h2>
+                <p class="text-sm text-slate-400">Fill the photo with the tester's screen. Avoid glare.</p>
             </div>
+
+            <!-- Primary capture control: one big button (opens the phone camera) -->
+            <button id="btnCaptureFrame" type="button" class="w-full py-8 px-4 rounded-3xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.99] text-slate-950 font-extrabold text-2xl shadow-lg shadow-yellow-400/20 transition flex items-center justify-center gap-3 cursor-pointer">
+                <svg class="w-9 h-9 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span>TAKE PICTURE</span>
+            </button>
 
             <!-- Secondary options, collapsed out of the way -->
             <details class="bg-slate-900/60 border border-slate-800 rounded-2xl">
@@ -259,7 +168,7 @@
             <div class="sm:col-span-2 bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Current Batch Location</span>
-                    <p id="currentBatchLocationDisplay" class="text-sm font-bold text-white mt-0.5">Not set (will prompt on scan)</p>
+                    <p id="currentBatchLocationDisplay" class="text-sm font-bold text-white mt-0.5">Not set (optional)</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <button id="btnQuickSetLocation" type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-yellow-400 border border-slate-700 transition">
@@ -354,6 +263,16 @@
             </button>
         </div>
     </nav>
+
+    <!-- ==================== OCR PROCESSING OVERLAY (full screen) ==================== -->
+    <div id="ocrLoadingOverlay" class="no-print hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+        <div class="w-14 h-14 rounded-full border-4 border-slate-700 border-t-yellow-400 animate-spin mb-4"></div>
+        <h3 class="font-bold text-base text-white mb-1">Reading HPAT550 Screen...</h3>
+        <p id="ocrProgressText" class="text-xs font-mono text-yellow-400 mb-3">Initialising OCR engine...</p>
+        <div class="w-56 h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div id="ocrProgressBar" class="h-full bg-yellow-400 transition-all duration-200" style="width: 15%"></div>
+        </div>
+    </div>
 
     <!-- ==================== VERIFICATION & ASSET TAGGING MODAL ==================== -->
     <div id="verifyModal" class="no-print hidden fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
@@ -471,8 +390,8 @@
 
                 <!-- Location / Room -->
                 <div>
-                    <label for="inputLocation" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Location / Room *</label>
-                    <input id="inputLocation" type="text" required placeholder="e.g. Office 2B, Kitchen, Server Room" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
+                    <label for="inputLocation" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Location / Room (optional)</label>
+                    <input id="inputLocation" type="text" placeholder="e.g. Office 2B, Kitchen, Server Room" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
                 </div>
 
                 <!-- Martindale HPAT550 Extracted Readings Grid -->
@@ -651,19 +570,9 @@
                 lastLocation: '',
                 activeFilter: 'ALL',
                 searchQuery: '',
-                mediaStream: null,
                 ocrInvert: false,
                 ocrBias: 0,
                 verifyHistoryPushed: false,
-                liveScan: {
-                    active: false,
-                    busy: false,
-                    timerId: null,
-                    worker: null,
-                    lastParsed: null,
-                    lastFrameCanvas: null,
-                    lastThumbUrl: ''
-                },
                 currentDraft: {
                     sourceCanvas: null,
                     imageDataUrl: '',
@@ -684,26 +593,10 @@
                 navBtnScan: document.getElementById('navBtnScan'),
                 navBtnLog: document.getElementById('navBtnLog'),
                 navBadgeCount: document.getElementById('navBadgeCount'),
-                cameraVideo: document.getElementById('cameraVideo'),
-                cameraPlaceholder: document.getElementById('cameraPlaceholder'),
-                cameraStatusTitle: document.getElementById('cameraStatusTitle'),
-                cameraStatusDesc: document.getElementById('cameraStatusDesc'),
-                btnStartCamera: document.getElementById('btnStartCamera'),
                 ocrLoadingOverlay: document.getElementById('ocrLoadingOverlay'),
                 ocrProgressText: document.getElementById('ocrProgressText'),
                 ocrProgressBar: document.getElementById('ocrProgressBar'),
                 btnCaptureFrame: document.getElementById('btnCaptureFrame'),
-                btnCaptureFrameLabel: document.getElementById('btnCaptureFrameLabel'),
-                btnToggleLiveScan: document.getElementById('btnToggleLiveScan'),
-                liveScanToggleState: document.getElementById('liveScanToggleState'),
-                liveScanPulseDot: document.getElementById('liveScanPulseDot'),
-                reticleHeaderLabel: document.getElementById('reticleHeaderLabel'),
-                hudStatusBar: document.getElementById('hudStatusBar'),
-                hudStatusText: document.getElementById('hudStatusText'),
-                hudClassText: document.getElementById('hudClassText'),
-                hudEarthValue: document.getElementById('hudEarthValue'),
-                hudInsValue: document.getElementById('hudInsValue'),
-                hudFooterTip: document.getElementById('hudFooterTip'),
                 filePhotoInput: document.getElementById('filePhotoInput'),
                 btnDemoScan: document.getElementById('btnDemoScan'),
                 demoPresetSelect: document.getElementById('demoPresetSelect'),
@@ -770,8 +663,6 @@
                 outcomeBlock: document.getElementById('outcomeBlock')
             };
 
-            const LIVE_BTN_OFF_CLASS = 'w-full py-3.5 px-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-base transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed';
-            const LIVE_BTN_ON_CLASS = 'w-full py-3.5 px-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-300 font-extrabold text-base transition flex items-center justify-center gap-2 cursor-pointer';
 
             // OCR character whitelist. The HPAT550 colour screen uses mixed-case labels
             // ("Earth cont.", "Insulation", "Polarity: Correct"), so lowercase is required.
@@ -786,7 +677,6 @@
                 updateBatchLocationUI();
                 renderRecordsLog();
                 bindEvents();
-                startCameraStream(true);
             }
 
             function loadFromStorage() {
@@ -855,7 +745,7 @@
                     dom.currentBatchLocationDisplay.classList.remove('text-slate-400');
                     dom.currentBatchLocationDisplay.classList.add('text-yellow-400');
                 } else {
-                    dom.currentBatchLocationDisplay.textContent = 'Not set (will prompt on scan)';
+                    dom.currentBatchLocationDisplay.textContent = 'Not set (optional)';
                     dom.currentBatchLocationDisplay.classList.remove('text-yellow-400');
                     dom.currentBatchLocationDisplay.classList.add('text-white');
                 }
@@ -906,229 +796,23 @@
             }
 
             /* =====================================================================
-             * 3. CAMERA STREAMING & FRAME CAPTURE
+             * 3. PHOTO CAPTURE (phone's own camera via file input)
              * ===================================================================== */
-            async function startCameraStream(silentFail = false) {
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    if (!silentFail) {
-                        showToast('Camera API unavailable — use Upload / Take Photo.', 'info');
-                    }
-                    return;
-                }
-
-                try {
-                    if (state.mediaStream) {
-                        state.mediaStream.getTracks().forEach(t => t.stop());
-                    }
-
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: { ideal: 'environment' },
-                            width: { ideal: 1280 },
-                            height: { ideal: 960 }
-                        },
-                        audio: false
-                    });
-
-                    state.mediaStream = stream;
-                    dom.cameraVideo.srcObject = stream;
-                    dom.cameraVideo.classList.remove('hidden');
-                    dom.cameraPlaceholder.classList.add('hidden');
-                    dom.btnToggleLiveScan.disabled = false;
-                } catch (err) {
-                    console.warn('Camera access note:', err.message);
-                    dom.cameraVideo.classList.add('hidden');
-                    dom.cameraPlaceholder.classList.remove('hidden');
-                    // Take Picture stays enabled: it falls back to the phone's own camera app
-                    dom.btnToggleLiveScan.disabled = true;
-                    if (!silentFail) {
-                        dom.cameraStatusTitle.textContent = 'Camera Permission Blocked';
-                        dom.cameraStatusDesc.textContent = 'Tap TAKE PICTURE to use your phone camera app instead.';
-                        showToast('Camera blocked. TAKE PICTURE will open your camera app.', 'info');
-                    }
-                }
-            }
 
             /**
-             * Grabs the current frame inside the HPAT550 alignment reticle into captureCanvas
+             * Opens the phone's camera app. A full-resolution photo reads far more reliably
+             * than a frame grabbed from live video.
              */
-            function grabReticleCanvas() {
-                const video = dom.cameraVideo;
-                const vw = video.videoWidth;
-                const vh = video.videoHeight;
-
-                const cropW = Math.round(vw * 0.76);
-                const cropH = Math.round(vh * 0.68);
-                const cropX = Math.round((vw - cropW) / 2);
-                const cropY = Math.round((vh - cropH) / 2);
-
-                const canvas = dom.captureCanvas;
-                canvas.width = cropW;
-                canvas.height = cropH;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-                return canvas;
-            }
-
-            /**
-             * Captures the region inside the yellow HPAT550 viewfinder reticle from live video
-             */
-            function captureFromLiveVideo() {
-                // If Live Read is running and has a reading, use it ("USE THIS READING")
-                if (state.liveScan.active && state.liveScan.lastParsed && state.liveScan.lastFrameCanvas) {
-                    const snapshotParsed = { ...state.liveScan.lastParsed };
-                    const snapshotCanvas = state.liveScan.lastFrameCanvas;
-                    const snapshotThumb = state.liveScan.lastThumbUrl;
-                    const snapshotRaw = snapshotParsed.rawOcr || '';
-                    stopLiveAutoScan();
-
-                    const procCanvas = preprocessForOcr(snapshotCanvas, { invert: false, thresholdBias: 0 });
-                    const procThumb = createCompressedThumbnail(procCanvas);
-                    state.ocrInvert = false;
-                    state.ocrBias = 0;
-                    openVerificationModal(snapshotParsed, snapshotThumb, procThumb, snapshotRaw, snapshotCanvas, false);
-                    return;
-                }
-
-                // Otherwise open the phone's own camera: a full-resolution photo reads far more
-                // reliably than a frame grabbed from the (much lower resolution) live video.
-                stopLiveAutoScan();
+            function takePicture() {
                 dom.filePhotoInput.click();
             }
 
-            /**
-             * Toggles QR-style continuous real-time OCR polling on the live camera feed
-             */
-            async function toggleLiveAutoScan() {
-                if (state.liveScan.active) {
-                    stopLiveAutoScan();
-                    showToast('Live auto-scan paused.', 'info');
-                    return;
-                }
-
-                if (!state.mediaStream || dom.cameraVideo.readyState < 2) {
-                    showToast('Enable rear camera first for Live Read.', 'error');
-                    return;
-                }
-
-                state.liveScan.active = true;
-                state.liveScan.lastParsed = null;
-                dom.btnToggleLiveScan.className = LIVE_BTN_ON_CLASS;
-                dom.liveScanToggleState.textContent = 'ON • tap to stop';
-                dom.liveScanToggleState.className = 'text-xs font-mono text-emerald-300 font-bold';
-                dom.liveScanPulseDot.classList.remove('hidden');
-                dom.reticleHeaderLabel.textContent = 'LIVE READING HPAT550...';
-                dom.btnCaptureFrameLabel.textContent = 'USE THIS READING';
-                dom.hudFooterTip.textContent = 'Hold steady — numbers update automatically';
-
-                try {
-                    if (!state.liveScan.worker) {
-                        const worker = await Tesseract.createWorker('eng', 1);
-                        await worker.setParameters({
-                            tessedit_char_whitelist: OCR_CHAR_WHITELIST,
-                            tessedit_pageseg_mode: '6'
-                        });
-                        state.liveScan.worker = worker;
-                    }
-
-                    // Run real-time OCR loop (~850ms cadence without overlapping frames)
-                    runLiveScanTick();
-                    state.liveScan.timerId = setInterval(runLiveScanTick, 850);
-                } catch (err) {
-                    console.error('Live OCR init failed:', err);
-                    stopLiveAutoScan();
-                    showToast('Could not start Live Read — use TAKE PICTURE instead.', 'error');
-                }
-            }
-
-            async function runLiveScanTick() {
-                if (!state.liveScan.active || state.liveScan.busy || !state.liveScan.worker) return;
-                if (!state.mediaStream || dom.cameraVideo.readyState < 2) return;
-
-                state.liveScan.busy = true;
-                try {
-                    const frameCanvas = grabReticleCanvas();
-                    // Clone frame so user can lock this exact snapshot
-                    const frozenCopy = document.createElement('canvas');
-                    frozenCopy.width = frameCanvas.width;
-                    frozenCopy.height = frameCanvas.height;
-                    frozenCopy.getContext('2d').drawImage(frameCanvas, 0, 0);
-
-                    const procCanvas = preprocessForOcr(frozenCopy, { invert: false, thresholdBias: 0 });
-                    const { data: { text } } = await state.liveScan.worker.recognize(procCanvas);
-
-                    if (!state.liveScan.active) return;
-
-                    const parsed = parseHpat550OcrText(text, detectStatusByColour(frozenCopy));
-                    parsed.rawOcr = text;
-                    state.liveScan.lastParsed = parsed;
-                    state.liveScan.lastFrameCanvas = frozenCopy;
-                    state.liveScan.lastThumbUrl = createCompressedThumbnail(frozenCopy);
-
-                    // Update live HUD numbers inside the viewfinder reticle
-                    updateViewfinderLiveHud(parsed);
-                } catch (err) {
-                    console.warn('Live OCR tick skipped:', err);
-                } finally {
-                    state.liveScan.busy = false;
-                }
-            }
-
-            function updateViewfinderLiveHud(parsed) {
-                const f = parsed.found || {};
-                const status = parsed.interim ? 'IN PROGRESS' : f.status ? parsed.status : '--';
-                const earth = f.earth ? parsed.earth : '--';
-                const ins = f.insulation ? parsed.insulation : '--';
-                const isFail = status === 'FAIL';
-                const barBase = 'backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors';
-                dom.hudStatusText.textContent = `STATUS: ${status}`;
-                dom.hudStatusText.className = !f.status ? 'font-bold text-sm text-slate-200'
-                    : isFail ? 'font-extrabold text-sm text-red-400' : 'font-extrabold text-sm text-emerald-400';
-                dom.hudStatusBar.className = !f.status ? `border border-dashed border-slate-400/50 bg-slate-950/55 ${barBase}`
-                    : isFail ? `border border-red-400/70 bg-red-950/65 ${barBase}` : `border border-emerald-400/70 bg-emerald-950/55 ${barBase}`;
-
-                dom.hudClassText.textContent = f.testType ? parsed.testType.toUpperCase() : '--';
-                dom.hudEarthValue.textContent = earth;
-                dom.hudInsValue.textContent = ins;
-                dom.hudFooterTip.textContent = `Live: ${status} | ${earth} | ${ins} — tap USE THIS READING`;
-            }
-
-            async function stopLiveAutoScan() {
-                state.liveScan.active = false;
-                state.liveScan.busy = false;
-                if (state.liveScan.timerId) {
-                    clearInterval(state.liveScan.timerId);
-                    state.liveScan.timerId = null;
-                }
-                if (state.liveScan.worker) {
-                    try {
-                        await state.liveScan.worker.terminate();
-                    } catch (e) { /* ignore */ }
-                    state.liveScan.worker = null;
-                }
-
-                // Reset Viewfinder HUD & Toggle Button UI
-                dom.btnToggleLiveScan.className = LIVE_BTN_OFF_CLASS;
-                dom.liveScanToggleState.textContent = 'OFF';
-                dom.liveScanToggleState.className = 'text-xs font-mono text-slate-400';
-                dom.liveScanPulseDot.classList.add('hidden');
-                dom.reticleHeaderLabel.textContent = 'Martindale HPAT550 LCD';
-                dom.btnCaptureFrameLabel.textContent = 'TAKE PICTURE';
-                dom.hudStatusBar.className = 'border border-dashed border-emerald-400/50 bg-slate-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors';
-                dom.hudStatusText.textContent = 'STATUS: --';
-                dom.hudStatusText.className = 'font-bold text-sm text-slate-200';
-                dom.hudClassText.textContent = 'CLASS I / II / LEAD';
-                dom.hudEarthValue.textContent = '--';
-                dom.hudInsValue.textContent = '--';
-                dom.hudFooterTip.textContent = 'Keep screen flat & avoid glare';
-            }
 
             /**
              * Processes an uploaded image file or native mobile camera photo
              */
             function handleImageFileUpload(file) {
                 if (!file) return;
-                stopLiveAutoScan();
                 const reader = new FileReader();
                 reader.onload = function (evt) {
                     const img = new Image();
@@ -1971,8 +1655,8 @@
                 const appliance = dom.inputAppliance.value.trim();
                 const location = dom.inputLocation.value.trim();
 
-                if (!appliance || !location) {
-                    showToast('Please enter both Appliance and Location.', 'error');
+                if (!appliance) {
+                    showToast('Please enter the Appliance.', 'error');
                     return;
                 }
                 if (!state.currentDraft.status) {
@@ -2078,9 +1762,9 @@
                                         <span class="text-[11px] text-slate-400">${escapeHtml(rec.formattedDate)} • ${escapeHtml(rec.formattedTime)}</span>
                                     </div>
                                     <h3 class="font-bold text-base text-white mt-1">${escapeHtml(rec.appliance)}</h3>
-                                    <p class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                                    ${rec.location ? `<p class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                                         <span>📍</span> ${escapeHtml(rec.location)}
-                                    </p>
+                                    </p>` : ''}
                                 </div>
                                 <span class="px-3 py-1 rounded-xl font-extrabold text-xs border ${badgeClass} shrink-0">
                                     ${escapeHtml(rec.status)}
@@ -2222,7 +1906,6 @@
                     dom.navBtnScan.className = 'py-2.5 px-4 rounded-xl bg-yellow-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow transition';
                     dom.navBtnLog.className = 'py-2.5 px-4 rounded-xl bg-slate-800/80 text-slate-300 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition';
                 } else {
-                    stopLiveAutoScan();
                     dom.tabScan.classList.add('hidden');
                     dom.tabLog.classList.remove('hidden');
                     dom.navBtnLog.className = 'py-2.5 px-4 rounded-xl bg-yellow-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow transition';
@@ -2246,9 +1929,7 @@
                 dom.navBtnLog.addEventListener('click', () => switchTab('log'));
 
                 // Camera & Capture Controls
-                dom.btnStartCamera.addEventListener('click', () => startCameraStream(false));
-                dom.btnCaptureFrame.addEventListener('click', captureFromLiveVideo);
-                dom.btnToggleLiveScan.addEventListener('click', toggleLiveAutoScan);
+                dom.btnCaptureFrame.addEventListener('click', takePicture);
                 dom.filePhotoInput.addEventListener('change', (e) => {
                     if (e.target.files && e.target.files[0]) {
                         handleImageFileUpload(e.target.files[0]);
@@ -2256,7 +1937,6 @@
                     }
                 });
                 dom.btnDemoScan.addEventListener('click', () => {
-                    stopLiveAutoScan();
                     runSimulatedHpat550Scan(dom.demoPresetSelect.value);
                 });
 

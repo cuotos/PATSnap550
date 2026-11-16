@@ -2,7 +2,7 @@ AGENTS.md — PAT Snap 550 (Martindale HPAT550 Optical Screen Logger)
 
 1. Project Overview
 
-PAT Snap 550 is a mobile-first, offline-capable web application designed for UK Portable Appliance Testing (PAT) engineers using a Martindale HPAT550 tester. Instead of manually transcribing test results, the engineer aims their phone camera at the HPAT550 LCD display (similar to scanning a QR code) to extract, verify, and log compliance records.
+PAT Snap 550 is a mobile-first, offline-capable web application designed for UK Portable Appliance Testing (PAT) engineers using a Martindale HPAT550 tester. Instead of manually transcribing test results, the engineer photographs the HPAT550 result screen with the phone camera, then checks and logs the extracted readings.
 
 Architecture: Single-file, zero-build-step web app (index.html).
 
@@ -16,7 +16,6 @@ All markup, styling, and application logic live inside index.html:
 
 CSS & Print Media (<style>):
 
-Custom @keyframes scanline animation for the viewfinder reticle.
 
 @media print rules hiding .no-print UI chrome and rendering #printReportContainer as a formal white-background PAT Register Certificate (A4/Letter printable).
 
@@ -26,9 +25,9 @@ Header: Brand badge, IET CoP 5th Ed tag, and live Next Tag (#headerNextAssetId, 
 
 Tab 1 — Scan Screen (#tabScan):
 
-Rear-camera <video> stream (#cameraVideo) with a Martindale-proportioned alignment reticle (#reticleBox) and real-time HUD (#hudStatusText, #hudClassText, #hudEarthValue, #hudInsValue).
+Short how-to hint card. There is no in-app camera view or Live Read (removed: low-res video frames read unreliably).
 
-Primary controls: SNAP & SCAN SCREEN (#btnCaptureFrame), LIVE READ toggle (#btnToggleLiveScan), native photo upload fallback (#filePhotoInput), and a Demo Scan (HPAT550) simulator (#btnDemoScan + #demoPresetSelect).
+One big TAKE PICTURE button (#btnCaptureFrame) that opens the phone's own camera via #filePhotoInput (capture="environment") for a full-resolution photo. A collapsed "More options" holds photo upload, Demo Scan (#btnDemoScan + #demoPresetSelect) and the batch location card. Swipe-back / Android back on the check screen discards the scan (history.pushState + popstate).
 
 Sticky batch location card (#currentBatchLocationDisplay).
 
@@ -54,7 +53,7 @@ state & dom: Central state object and cached DOM references.
 
 Storage (loadFromStorage, saveToStorage): Persists records in localStorage under pat_snap_550_records_v1 and sticky room location under pat_snap_550_last_location_v1. Includes automatic thumbnail pruning if localStorage quota is exceeded.
 
-Camera & Live OCR Loop (startCameraStream, toggleLiveAutoScan, runLiveScanTick, stopLiveAutoScan): Manages navigator.mediaDevices.getUserMedia (facingMode: 'environment') and runs a non-overlapping ~850 ms Tesseract worker loop that updates the viewfinder HUD in real time until locked.
+Capture (takePicture, handleImageFileUpload): opens the native camera, scales the photo to max 1100px, then runs OCR once. PASS/FAIL is detected by colour (detectStatusByColour: tall green/red blob on the cropped screen) and passed to the parser.
 
 Screen facts (from real photos): the HPAT550 has a colour TFT screen, NOT a 7-segment LCD. Dark mixed-case text on white, e.g. "250V", "IEC lead test [interim] result" / "Class I test result", "Earth cont. RPE: 0.02Ω" (or ">20Ω", or "-" = not tested), "Insulation RISO: >100MΩ", "Polarity: Correct", a big green PASS / red FAIL (absent on interim screens), and a limits line "RPE ≤0.1Ω, RISO ≥1MΩ" that must never be read as a reading.
 
@@ -88,7 +87,7 @@ Protect OCR Accuracy:
 
 Do not remove preprocessForOcr() or OCR_CHAR_WHITELIST when changing OCR calls. The whitelist must include lowercase letters (the screen labels are mixed case). Never let a missed reading fall back to a fake value — leave it blank and flag it.
 
-Always terminate Tesseract workers (await worker.terminate()) when stopping liveScan or finishing single-shot OCR to avoid WebAssembly memory leaks on mobile Safari/Chrome.
+Always terminate Tesseract workers (await worker.terminate()) after each OCR run to avoid WebAssembly memory leaks on mobile Safari/Chrome.
 
 Mobile Field Ergonomics:
 
