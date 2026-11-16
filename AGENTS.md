@@ -69,6 +69,12 @@ Contrast stretch, then Otsu threshold plus thresholdBias (-45 to +45); auto-norm
 
 HPAT550 Parser (parseHpat550OcrText): Label-aware — each value is only taken from its own labelled line. Returns `found` flags; anything not genuinely read is shown to the engineer as "Not read" and left blank (never filled with a plausible default). If neither PASS nor FAIL is found, the test is treated as not complete (`interim`) and the engineer must choose the outcome.
 
+AI reading (readScreenWithOpenAI / mapOpenAiReading): when an OpenAI key is saved (More options; localStorage pat_snap_550_openai_key_v1, model in pat_snap_550_openai_model_v1, default gpt-4.1-mini), the 1600px photo is sent to OpenAI Chat Completions with a strict JSON schema and a prompt describing the HPAT550 screen. This is the primary reader (6/6 example photos fully correct). Any failure falls back to the offline Tesseract reader, which uses a separate 1100px copy (canvas.offlineCanvas) because it reads worse at other sizes. Never commit API keys: .env is gitignored.
+
+Saving rules: PASS/FAIL must be chosen if not read; voltage must be chosen (250V/500V) if not read, unless insulation is "Not tested". No reading is ever defaulted.
+
+Editing: each Results Log card has Edit (openRecordForEdit), which reuses the check screen with scanner tiles hidden; saving updates the record in place (state.editingRecordId).
+
 Regression test: example photos live in "example pictures/". Run them through the real app in headless Chrome (Playwright driving the installed Chrome, uploading via #filePhotoInput) and compare the "Scanner read" tiles against what each photo shows.
 
 3. Coding Conventions & Guardrails for Agents

@@ -124,6 +124,7 @@
                 </div>
                 <h2 class="font-bold text-lg text-white">Photograph the HPAT550 result screen</h2>
                 <p class="text-sm text-slate-400">Fill the photo with the tester's screen. Avoid glare.</p>
+                <p id="aiModeBadge" class="text-xs font-bold text-slate-500">Reader: offline</p>
             </div>
 
             <!-- Primary capture control: one big button (opens the phone camera) -->
@@ -163,6 +164,21 @@
                         <option value="fail_earth">Earth Fail</option>
                     </select>
                 </div>
+
+            <!-- AI screen reading (OpenAI) settings -->
+            <div class="sm:col-span-2 bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2.5">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">AI screen reading (OpenAI)</span>
+                <p id="aiStatusText" class="text-sm font-bold text-white">Off — using offline reader</p>
+                <label for="inputOpenAiKey" class="text-[11px] font-bold uppercase text-slate-400">API key</label>
+                <input id="inputOpenAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-white text-sm">
+                <label for="inputOpenAiModel" class="text-[11px] font-bold uppercase text-slate-400">Model</label>
+                <input id="inputOpenAiModel" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-mini" class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-white text-sm">
+                <div class="flex gap-2">
+                    <button id="btnSaveAiSettings" type="button" class="flex-1 py-3 rounded-xl bg-yellow-400 text-slate-950 text-sm font-extrabold">Save</button>
+                    <button id="btnClearAiSettings" type="button" class="px-4 py-3 rounded-xl bg-slate-800 text-red-400 border border-slate-700 text-sm font-bold">Remove key</button>
+                </div>
+                <p class="text-[11px] text-slate-500">The key is stored only on this phone. Each photo is sent to OpenAI to be read (small cost per scan). With no key or no signal, the offline reader is used.</p>
+            </div>
 
             <!-- Quick Batch Context Card -->
             <div class="sm:col-span-2 bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -282,7 +298,7 @@
             <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
                 <div class="flex items-center gap-2.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse"></span>
-                    <h2 class="font-extrabold text-base text-white">Check the Reading</h2>
+                    <h2 id="verifyModalTitle" class="font-extrabold text-base text-white">Check the Reading</h2>
                 </div>
                 <button id="btnCloseVerifyModal" type="button" class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
@@ -306,8 +322,8 @@
                 </div>
 
                 <!-- What the scanner read — big, obvious tiles -->
-                <div>
-                    <h3 class="text-sm font-extrabold uppercase tracking-wider text-yellow-400 mb-2">Scanner read — check against the photo</h3>
+                <div id="readSummarySection">
+                    <h3 id="readSummaryHeading" class="text-sm font-extrabold uppercase tracking-wider text-yellow-400 mb-2">Scanner read — check against the photo</h3>
                     <div id="readSummaryGrid" class="grid grid-cols-2 gap-2"></div>
                 </div>
 
@@ -334,7 +350,7 @@
                 </div>
 
                 <!-- Re-read tuning (collapsed) -->
-                <details class="bg-slate-950/60 border border-slate-800 rounded-2xl">
+                <details id="rereadSection" class="bg-slate-950/60 border border-slate-800 rounded-2xl">
                     <summary class="px-3.5 py-3 text-sm font-semibold text-slate-300 cursor-pointer select-none">Wrong numbers? Adjust &amp; re-read</summary>
                     <div class="px-3.5 pb-3.5 flex flex-col gap-3">
                         <div class="relative rounded-xl overflow-hidden bg-white border border-yellow-400/50 max-w-[220px]">
@@ -356,6 +372,8 @@
                                 </button>
                             </div>
                         </div>
+                        <button type="button" id="btnToggleRawOcr" class="self-start text-[11px] text-slate-400 underline hover:text-white">View Raw OCR</button>
+                        <pre id="rawOcrPreview" class="hidden text-[11px] font-mono bg-slate-900 text-slate-300 p-2.5 rounded-xl border border-slate-800 overflow-x-auto whitespace-pre-wrap"></pre>
                     </div>
                 </details>
 
@@ -374,36 +392,20 @@
                     </div>
                 </div>
 
-                <!-- Quick Appliance Presets -->
-                <div>
-                    <span class="text-[11px] font-semibold text-slate-400 block mb-1.5">Quick Appliance Presets:</span>
-                    <div class="flex flex-wrap gap-1.5">
-                        <button type="button" data-preset="Kettle" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Kettle</button>
-                        <button type="button" data-preset="Monitor" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Monitor</button>
-                        <button type="button" data-preset="Laptop PSU" data-class="Class II" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Laptop PSU</button>
-                        <button type="button" data-preset="Extension Lead" data-class="Lead" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Extension Lead</button>
-                        <button type="button" data-preset="IEC Power Lead" data-class="Lead" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">IEC Lead</button>
-                        <button type="button" data-preset="Microwave" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Microwave</button>
-                        <button type="button" data-preset="Desktop PC" data-class="Class I" class="preset-chip px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700">Desktop PC</button>
-                    </div>
-                </div>
-
                 <!-- Location / Room -->
                 <div>
                     <label for="inputLocation" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Location / Room (optional)</label>
                     <input id="inputLocation" type="text" placeholder="e.g. Office 2B, Kitchen, Server Room" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
                 </div>
 
-                <!-- Martindale HPAT550 Extracted Readings Grid -->
-                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 flex flex-col gap-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-extrabold uppercase tracking-wider text-yellow-400">Readings to save (edit if wrong)</span>
-                        <button type="button" id="btnToggleRawOcr" class="text-[11px] text-slate-400 underline hover:text-white">View Raw OCR</button>
-                    </div>
+                <!-- Readings editor: hidden behind "Edit readings" unless something needs entering -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl">
+                    <button type="button" id="btnEditReadings" aria-expanded="false" aria-controls="readingsEditor" class="w-full px-4 py-3.5 flex items-center justify-between text-sm font-bold text-yellow-400">
+                        <span id="btnEditReadingsLabel">✎ Edit readings</span>
+                        <span id="btnEditReadingsChevron" class="text-slate-400">▾</span>
+                    </button>
 
-                    <!-- Raw OCR Debug Drawer -->
-                    <pre id="rawOcrPreview" class="hidden text-[11px] font-mono bg-slate-900 text-slate-300 p-2.5 rounded-xl border border-slate-800 overflow-x-auto whitespace-pre-wrap"></pre>
-
+                    <div id="readingsEditor" class="hidden px-3.5 pb-3.5 flex flex-col gap-3">
                     <!-- Test Class Selector -->
                     <div>
                         <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Appliance Class / Test Sequence</label>
@@ -414,23 +416,15 @@
                         </div>
                     </div>
 
-                    <!-- Earth Continuity & Insulation Resistance with One-Tap Micro-Adjustment Steppers -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <!-- Earth Continuity & Insulation Resistance (type the value) -->
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label for="inputEarth" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Earth Bond Continuity (Ω)</label>
-                            <div class="flex items-stretch gap-1">
-                                <button type="button" id="btnEarthMinus" aria-label="Decrease Earth Bond by 0.01 Ohm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">−.01</button>
-                                <input id="inputEarth" type="text" placeholder="e.g. 0.02 Ω or N/A" class="w-full min-w-0 px-2.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono font-bold text-white text-sm text-center">
-                                <button type="button" id="btnEarthPlus" aria-label="Increase Earth Bond by 0.01 Ohm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">+.01</button>
-                            </div>
+                            <label for="inputEarth" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Earth Bond (Ω)</label>
+                            <input id="inputEarth" type="text" placeholder="e.g. 0.02 Ω" class="w-full min-w-0 px-3 py-3 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono font-bold text-white text-base text-center">
                         </div>
                         <div>
-                            <label for="inputInsulation" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Insulation Resistance (MΩ)</label>
-                            <div class="flex items-stretch gap-1">
-                                <button type="button" id="btnInsMinus" aria-label="Decrease Insulation by 0.01 MOhm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">−.01</button>
-                                <input id="inputInsulation" type="text" placeholder="e.g. >99.9 MΩ" class="w-full min-w-0 px-2.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono font-bold text-white text-sm text-center">
-                                <button type="button" id="btnInsPlus" aria-label="Increase Insulation by 0.01 MOhm" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 font-mono font-extrabold text-yellow-400 text-sm select-none">+.01</button>
-                            </div>
+                            <label for="inputInsulation" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Insulation (MΩ)</label>
+                            <input id="inputInsulation" type="text" placeholder="e.g. >100 MΩ" class="w-full min-w-0 px-3 py-3 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono font-bold text-white text-base text-center">
                         </div>
                     </div>
 
@@ -439,6 +433,7 @@
                         <div>
                             <label for="inputVoltage" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Insulation Voltage</label>
                             <select id="inputVoltage" class="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-sm text-white">
+                                <option value="">— choose —</option>
                                 <option value="500V">500V DC</option>
                                 <option value="250V">250V DC (IT/Surge)</option>
                             </select>
@@ -452,6 +447,7 @@
                                 <option value="NOT TESTED">Not tested</option>
                             </select>
                         </div>
+                    </div>
                     </div>
                 </div>
 
@@ -563,6 +559,9 @@
             // Storage Keys
             const STORAGE_KEY_RECORDS = 'pat_snap_550_records_v1';
             const STORAGE_KEY_LOCATION = 'pat_snap_550_last_location_v1';
+            const STORAGE_KEY_OPENAI_KEY = 'pat_snap_550_openai_key_v1';
+            const STORAGE_KEY_OPENAI_MODEL = 'pat_snap_550_openai_model_v1';
+            const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
 
             // Application State
             const state = {
@@ -573,6 +572,9 @@
                 ocrInvert: false,
                 ocrBias: 0,
                 verifyHistoryPushed: false,
+                openAiKey: '',
+                openAiModel: '',
+                editingRecordId: null,
                 currentDraft: {
                     sourceCanvas: null,
                     imageDataUrl: '',
@@ -631,11 +633,7 @@
                 btnToggleRawOcr: document.getElementById('btnToggleRawOcr'),
                 rawOcrPreview: document.getElementById('rawOcrPreview'),
                 inputEarth: document.getElementById('inputEarth'),
-                btnEarthMinus: document.getElementById('btnEarthMinus'),
-                btnEarthPlus: document.getElementById('btnEarthPlus'),
                 inputInsulation: document.getElementById('inputInsulation'),
-                btnInsMinus: document.getElementById('btnInsMinus'),
-                btnInsPlus: document.getElementById('btnInsPlus'),
                 inputVoltage: document.getElementById('inputVoltage'),
                 inputPolarity: document.getElementById('inputPolarity'),
                 inputNotes: document.getElementById('inputNotes'),
@@ -660,7 +658,20 @@
                 demoScreenCanvas: document.getElementById('demoScreenCanvas'),
                 ocrFailBanner: document.getElementById('ocrFailBanner'),
                 readSummaryGrid: document.getElementById('readSummaryGrid'),
-                outcomeBlock: document.getElementById('outcomeBlock')
+                outcomeBlock: document.getElementById('outcomeBlock'),
+                btnEditReadings: document.getElementById('btnEditReadings'),
+                btnEditReadingsLabel: document.getElementById('btnEditReadingsLabel'),
+                btnEditReadingsChevron: document.getElementById('btnEditReadingsChevron'),
+                readingsEditor: document.getElementById('readingsEditor'),
+                aiModeBadge: document.getElementById('aiModeBadge'),
+                aiStatusText: document.getElementById('aiStatusText'),
+                inputOpenAiKey: document.getElementById('inputOpenAiKey'),
+                inputOpenAiModel: document.getElementById('inputOpenAiModel'),
+                btnSaveAiSettings: document.getElementById('btnSaveAiSettings'),
+                btnClearAiSettings: document.getElementById('btnClearAiSettings'),
+                verifyModalTitle: document.getElementById('verifyModalTitle'),
+                readSummarySection: document.getElementById('readSummarySection'),
+                rereadSection: document.getElementById('rereadSection')
             };
 
 
@@ -675,8 +686,42 @@
                 loadFromStorage();
                 updateAssetIdIndicators();
                 updateBatchLocationUI();
+                updateAiStatusUI();
                 renderRecordsLog();
                 bindEvents();
+            }
+
+            /** Shows whether AI reading is on, on the landing page and in More options */
+            function updateAiStatusUI() {
+                const on = !!state.openAiKey;
+                const model = state.openAiModel || DEFAULT_OPENAI_MODEL;
+                dom.aiModeBadge.textContent = on ? `Reader: AI (OpenAI ${model})` : 'Reader: offline — add an OpenAI key in More options for better accuracy';
+                dom.aiModeBadge.className = on ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-slate-500';
+                dom.aiStatusText.textContent = on ? `On — ${model}` : 'Off — using offline reader';
+                dom.aiStatusText.className = on ? 'text-sm font-bold text-emerald-400' : 'text-sm font-bold text-white';
+                dom.inputOpenAiKey.value = '';
+                dom.inputOpenAiKey.placeholder = on ? 'Key saved (enter a new one to replace)' : 'sk-...';
+                dom.inputOpenAiModel.value = state.openAiModel;
+            }
+
+            function saveAiSettings() {
+                const key = dom.inputOpenAiKey.value.trim();
+                const model = dom.inputOpenAiModel.value.trim();
+                if (key) state.openAiKey = key;
+                state.openAiModel = model;
+                try {
+                    if (state.openAiKey) localStorage.setItem(STORAGE_KEY_OPENAI_KEY, state.openAiKey);
+                    localStorage.setItem(STORAGE_KEY_OPENAI_MODEL, state.openAiModel);
+                } catch (e) { /* storage unavailable: setting lasts for this session only */ }
+                updateAiStatusUI();
+                showToast(state.openAiKey ? 'AI reading is on.' : 'No key entered — still using offline reader.', state.openAiKey ? 'success' : 'info');
+            }
+
+            function clearAiSettings() {
+                state.openAiKey = '';
+                try { localStorage.removeItem(STORAGE_KEY_OPENAI_KEY); } catch (e) { /* ignore */ }
+                updateAiStatusUI();
+                showToast('API key removed — using offline reader.', 'info');
             }
 
             function loadFromStorage() {
@@ -692,6 +737,8 @@
                     if (savedLocation) {
                         state.lastLocation = savedLocation;
                     }
+                    state.openAiKey = localStorage.getItem(STORAGE_KEY_OPENAI_KEY) || '';
+                    state.openAiModel = localStorage.getItem(STORAGE_KEY_OPENAI_MODEL) || '';
                 } catch (err) {
                     console.warn('Could not read from localStorage:', err);
                 }
@@ -818,7 +865,7 @@
                     const img = new Image();
                     img.onload = function () {
                         // Scale down excessively huge mobile camera photos for fast OCR
-                        const maxDim = 1100;
+                        const maxDim = 1600;
                         let w = img.width;
                         let h = img.height;
                         if (w > maxDim || h > maxDim) {
@@ -831,6 +878,15 @@
                         canvas.height = h;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, w, h);
+
+                        // Separate 1100px copy drawn straight from the photo for the offline reader,
+                        // which is tuned for (and reads best at) that size
+                        const offR = Math.min(1, 1100 / Math.max(img.width, img.height));
+                        const offline = document.createElement('canvas');
+                        offline.width = Math.round(img.width * offR);
+                        offline.height = Math.round(img.height * offR);
+                        offline.getContext('2d').drawImage(img, 0, 0, offline.width, offline.height);
+                        canvas.offlineCanvas = offline;
 
                         const thumbDataUrl = createCompressedThumbnail(canvas);
                         state.ocrInvert = false;
@@ -971,7 +1027,174 @@
             /* =====================================================================
              * 5. SEVEN-SEGMENT LCD PREPROCESSING, TESSERACT OCR & SMART PARSER
              * ===================================================================== */
+            /* ---------------------------------------------------------------------
+             * AI reading (OpenAI vision). Returns the same shape as parseHpat550OcrText.
+             * --------------------------------------------------------------------- */
+            const OPENAI_READING_PROMPT = `You read photos of a Martindale HPAT550 PAT tester's colour result screen and report exactly what the screen shows. Never guess: if something is not clearly visible, say so.
+
+Screen layout:
+- Top-left: test voltage, "250V" or "500V". Top-right: "Null" and a battery number (ignore these).
+- Title: "Class I test result", "Class II test result", "IEC lead test result". The word "interim" in the title ("... test interim result") means the test is NOT complete.
+- "Earth cont. RPE:" value, e.g. "0.02Ω" or ">20Ω". "-" means not tested yet. Class II screens have no earth line.
+- "Insulation RISO:" value, e.g. ">100MΩ" or "45.2MΩ". "-" means not tested yet.
+- "Polarity:" (IEC lead only): "Correct", "Incorrect"/"Reversed", or "-" (not tested yet).
+- A large green "PASS" or red "FAIL" word appears only when the test is complete.
+- A small limits line like "RPE ≤0.1Ω, RISO ≥1MΩ" or "RISO ≥2MΩ" shows the pass limits. It is NOT a reading — never report its numbers.
+- Icons next to readings (tick, cross, question mark) are not values.
+
+Rules:
+- result is "none" unless a large PASS or FAIL word is visible.
+- For earth and insulation give value as shown, without the unit, keeping ">" if present (e.g. "0.02", ">20", ">100", "45.2").
+- Use status "not_shown" if the line is not on the screen, "not_tested" if it shows "-", "unreadable" if you can't read it clearly.`;
+
+            const OPENAI_READING_SCHEMA = {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                    screen_found: { type: 'boolean', description: 'An HPAT550 result screen is visible and readable' },
+                    test_type: { type: 'string', enum: ['Class I', 'Class II', 'IEC Lead', 'unknown'] },
+                    interim: { type: 'boolean', description: 'Title says "interim"' },
+                    result: { type: 'string', enum: ['PASS', 'FAIL', 'none'] },
+                    voltage: { type: 'string', enum: ['250V', '500V', 'unknown'] },
+                    earth_status: { type: 'string', enum: ['value', 'not_tested', 'not_shown', 'unreadable'] },
+                    earth_value: { type: 'string', description: 'Ohms without unit, e.g. "0.02" or ">20"; empty unless earth_status is value' },
+                    insulation_status: { type: 'string', enum: ['value', 'not_tested', 'not_shown', 'unreadable'] },
+                    insulation_value: { type: 'string', description: 'Megohms without unit, e.g. ">100" or "45.2"; empty unless insulation_status is value' },
+                    polarity: { type: 'string', enum: ['Correct', 'Incorrect', 'not_tested', 'not_shown', 'unreadable'] }
+                },
+                required: ['screen_found', 'test_type', 'interim', 'result', 'voltage', 'earth_status', 'earth_value', 'insulation_status', 'insulation_value', 'polarity']
+            };
+
+            async function readScreenWithOpenAI(canvas) {
+                const model = state.openAiModel || DEFAULT_OPENAI_MODEL;
+                const imageUrl = canvas.toDataURL('image/jpeg', 0.85);
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 45000);
+                let res;
+                try {
+                    res = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${state.openAiKey}`
+                        },
+                        body: JSON.stringify({
+                            model,
+                            messages: [
+                                { role: 'system', content: OPENAI_READING_PROMPT },
+                                {
+                                    role: 'user',
+                                    content: [
+                                        { type: 'text', text: 'Read this HPAT550 screen.' },
+                                        { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } }
+                                    ]
+                                }
+                            ],
+                            response_format: {
+                                type: 'json_schema',
+                                json_schema: { name: 'hpat550_reading', strict: true, schema: OPENAI_READING_SCHEMA }
+                            }
+                        })
+                    });
+                } catch (err) {
+                    throw new Error(err.name === 'AbortError' ? 'timed out' : 'no connection');
+                } finally {
+                    clearTimeout(timer);
+                }
+
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (res.status === 401) throw new Error('API key rejected');
+                    throw new Error((body.error && body.error.message) || `HTTP ${res.status}`);
+                }
+                const content = body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content;
+                const ai = JSON.parse(content || '{}');
+                return { parsed: mapOpenAiReading(ai), raw: JSON.stringify(ai, null, 2) };
+            }
+
+            /** Converts the AI's answer into the app's reading format, with honest `found` flags */
+            function mapOpenAiReading(ai) {
+                const found = { status: false, testType: false, voltage: false, insulation: false, earth: false, polarity: false };
+                const testType = ai.test_type === 'Class II' ? 'Class II' : ai.test_type === 'IEC Lead' ? 'Lead' : 'Class I';
+                found.testType = ai.test_type !== 'unknown';
+
+                const complete = !ai.interim && (ai.result === 'PASS' || ai.result === 'FAIL');
+                const status = complete ? ai.result : '';
+                found.status = complete;
+
+                const voltage = ai.voltage === 'unknown' ? '' : ai.voltage;
+                found.voltage = !!voltage;
+
+                const cleanValue = v => String(v || '').replace(/\s+/g, '').replace(/[ΩΩ]|M$|MΩ$/gi, '');
+                let earth = '';
+                if (testType === 'Class II') {
+                    earth = 'N/A';
+                    found.earth = true;
+                } else if (ai.earth_status === 'value' && cleanValue(ai.earth_value)) {
+                    earth = `${cleanValue(ai.earth_value)} Ω`;
+                    found.earth = true;
+                } else if (ai.earth_status === 'not_tested') {
+                    earth = 'Not tested';
+                    found.earth = true;
+                }
+
+                let insulation = '';
+                if (ai.insulation_status === 'value' && cleanValue(ai.insulation_value)) {
+                    insulation = `${cleanValue(ai.insulation_value)} MΩ`;
+                    found.insulation = true;
+                } else if (ai.insulation_status === 'not_tested') {
+                    insulation = 'Not tested';
+                    found.insulation = true;
+                }
+
+                let polarity = 'N/A';
+                if (testType === 'Lead') {
+                    if (ai.polarity === 'Correct') { polarity = 'PASS'; found.polarity = true; }
+                    else if (ai.polarity === 'Incorrect') { polarity = 'FAIL'; found.polarity = true; }
+                    else if (ai.polarity === 'not_tested') { polarity = 'NOT TESTED'; found.polarity = true; }
+                } else {
+                    found.polarity = true;
+                }
+
+                return {
+                    status, interim: !complete, testType, earth, insulation, voltage, polarity, found,
+                    ocrFailed: !ai.screen_found, readBy: 'ai', suggestedAppliance: ''
+                };
+            }
+
             async function runOcrOnCanvas(canvas, thumbDataUrl, suggestedAppliance = '', isReRun = false) {
+                // Prefer AI reading when an OpenAI key is set; fall back to offline OCR on any failure
+                if (state.openAiKey) {
+                    dom.ocrLoadingOverlay.classList.remove('hidden');
+                    dom.ocrProgressText.textContent = 'Reading screen with AI...';
+                    dom.ocrProgressBar.style.width = '50%';
+                    try {
+                        const { parsed, raw } = await readScreenWithOpenAI(canvas);
+                        parsed.suggestedAppliance = suggestedAppliance;
+                        dom.ocrProgressBar.style.width = '100%';
+                        dom.ocrLoadingOverlay.classList.add('hidden');
+                        openVerificationModal(parsed, thumbDataUrl, thumbDataUrl, raw, canvas, isReRun);
+                        return;
+                    } catch (err) {
+                        console.warn('AI read failed:', err);
+                        showToast(`AI read failed (${err.message}) — using offline reader.`, 'error');
+                    }
+                }
+
+                // The offline reader is tuned for photos up to 1100px (larger ones read worse)
+                const maxOffline = 1100;
+                if (canvas.offlineCanvas) {
+                    canvas = canvas.offlineCanvas;
+                } else if (Math.max(canvas.width, canvas.height) > maxOffline) {
+                    const r = maxOffline / Math.max(canvas.width, canvas.height);
+                    const small = document.createElement('canvas');
+                    small.width = Math.round(canvas.width * r);
+                    small.height = Math.round(canvas.height * r);
+                    small.getContext('2d').drawImage(canvas, 0, 0, small.width, small.height);
+                    canvas = small;
+                }
+
                 dom.ocrLoadingOverlay.classList.remove('hidden');
                 dom.ocrProgressText.textContent = 'Bridging 7-segment LCD bars & stretching contrast...';
                 dom.ocrProgressBar.style.width = '18%';
@@ -1003,10 +1226,34 @@
                     });
 
                     const { data: { text } } = await worker.recognize(procCanvas);
+
+                    // Second pass just for the small "250V" / "500V" in the screen's top-left corner,
+                    // which the full-screen pass often misreads
+                    let voltText = '';
+                    try {
+                        await worker.setParameters({ tessedit_char_whitelist: '0123456789V', tessedit_pageseg_mode: '7' });
+                        // Cut the corner from the colour screen crop and threshold it on its own,
+                        // because the grey "250V" text is lost in the whole-screen threshold
+                        const screen = cropToScreen(canvas);
+                        const corner = document.createElement('canvas');
+                        corner.width = Math.round(screen.width * 0.42);
+                        corner.height = Math.round(screen.height * 0.16);
+                        corner.getContext('2d').drawImage(screen, 0, 0, corner.width, corner.height, 0, 0, corner.width, corner.height);
+                        const cornerProc = preprocessForOcr(corner, { invert: false, thresholdBias: 0, skipCrop: true });
+                        voltText = (await worker.recognize(cornerProc)).data.text || '';
+                    } catch (e) { /* optional pass */ }
                     await worker.terminate();
+                    if (window.PAT_DEBUG) console.log('voltage pass:', JSON.stringify(voltText));
 
                     dom.ocrProgressBar.style.width = '100%';
                     const parsed = parseHpat550OcrText(text, detectStatusByColour(canvas));
+                    if (!parsed.found.voltage) {
+                        const vm = voltText.replace(/\s/g, '').match(/([25])[0-9]0V?/);
+                        if (vm) {
+                            parsed.voltage = vm[1] === '2' ? '250V' : '500V';
+                            parsed.found.voltage = true;
+                        }
+                    }
                     if (suggestedAppliance) {
                         parsed.suggestedAppliance = suggestedAppliance;
                     }
@@ -1180,7 +1427,7 @@
             }
 
             function preprocessForOcr(sourceCanvas, options = { invert: false, thresholdBias: 0 }) {
-                sourceCanvas = cropToScreen(sourceCanvas);
+                if (!options.skipCrop) sourceCanvas = cropToScreen(sourceCanvas);
                 const scale = sourceCanvas.width < 850 ? Math.min(2, 900 / sourceCanvas.width) : 1;
                 const w = Math.round(sourceCanvas.width * scale);
                 const h = Math.round(sourceCanvas.height * scale);
@@ -1460,6 +1707,14 @@
                     ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-yellow-400 text-slate-950 border-yellow-400 transition'
                     : 'px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-900 text-slate-300 border-slate-700 hover:border-yellow-400 transition';
 
+                // A fresh scan is never an edit of an old result
+                if (!preserveUserMeta) {
+                    state.editingRecordId = null;
+                    dom.verifyModalTitle.textContent = 'Check the Reading';
+                    dom.readSummarySection.classList.remove('hidden');
+                    dom.rereadSection.classList.remove('hidden');
+                }
+
                 // Populate inputs (preserve typed Asset ID / Appliance / Location if user clicked Re-Read)
                 if (!preserveUserMeta) {
                     dom.inputAssetId.value = generateNextAssetId();
@@ -1468,9 +1723,12 @@
                     dom.inputNotes.value = '';
                 }
 
+                const found = parsed.found || {};
+
                 dom.inputEarth.value = parsed.earth || '';
                 dom.inputInsulation.value = parsed.insulation || '';
-                dom.inputVoltage.value = parsed.voltage || '500V';
+                // No guessing: if the voltage wasn't read, the engineer must choose 250V / 500V
+                dom.inputVoltage.value = found.voltage ? parsed.voltage : '';
                 dom.inputPolarity.value = parsed.polarity || 'N/A';
 
                 setModalOutcomeUI(state.currentDraft.status);
@@ -1478,13 +1736,17 @@
                 setModalTestTypeUI(state.currentDraft.testType);
 
                 // Show what the scanner actually read, and flag anything it missed
-                const found = parsed.found || {};
                 renderReadSummary(parsed);
                 dom.ocrFailBanner.classList.toggle('hidden', !parsed.ocrFailed);
                 markNeedsCheck(dom.inputEarth, !found.earth);
                 markNeedsCheck(dom.inputInsulation, !found.insulation);
                 markNeedsCheck(dom.outcomeBlock, !found.status);
                 markNeedsCheck(dom.inputVoltage, !found.voltage);
+
+                // Readings editor stays hidden unless a reading needs typing in
+                const needsVoltage = !found.voltage && parsed.insulation !== 'Not tested';
+                const needsEntry = !found.testType || !found.earth || !found.insulation || needsVoltage;
+                if (needsEntry || !preserveUserMeta) setReadingsEditorOpen(needsEntry);
 
                 // Add a history entry so swipe-back / Android back closes (discards) this scan
                 // instead of leaving the app. Skipped on Re-Read, when the modal is already open.
@@ -1503,11 +1765,12 @@
             function renderReadSummary(parsed) {
                 const f = parsed.found || {};
                 const isNotTested = v => /^not tested$/i.test(v || '');
+                const voltSub = f.voltage ? `at ${parsed.voltage}` : 'Voltage not read — choose it below';
                 const tiles = [
                     { label: 'Result', value: parsed.status, ok: f.status, tone: parsed.status === 'FAIL' ? 'fail' : 'pass', interim: parsed.interim },
                     { label: 'Class', value: parsed.testType === 'Lead' ? 'IEC Lead' : parsed.testType, ok: f.testType },
                     { label: 'Earth bond', value: parsed.earth, ok: f.earth },
-                    { label: 'Insulation', value: parsed.insulation, sub: f.voltage ? `at ${parsed.voltage}` : '', ok: f.insulation }
+                    { label: 'Insulation', value: parsed.insulation, sub: voltSub, ok: f.insulation }
                 ];
                 if (parsed.testType === 'Lead') {
                     const polText = parsed.polarity === 'PASS' ? 'Correct' : parsed.polarity === 'FAIL' ? 'Incorrect' : 'Not tested';
@@ -1567,27 +1830,18 @@
             }
 
             /**
-             * Steps numeric readings (e.g. "0.04 Ω" -> "0.03 Ω" -> "0.02 Ω") by +/- 0.01 in a single tap
+             * Shows / hides the readings editor behind the "Edit readings" button
              */
-            function stepNumericReading(inputEl, delta, unitSuffix, defaultStart = 0.02) {
-                const raw = inputEl.value.trim();
-                const prefixMatch = raw.match(/^(>|&gt;)?\s*(\d+(?:\.\d+)?)/i);
-                const prefix = prefixMatch && prefixMatch[1] ? '>' : '';
-                let num = prefixMatch ? parseFloat(prefixMatch[2]) : defaultStart;
-
-                if (Number.isNaN(num)) num = defaultStart;
-                num = Math.max(0, Math.round((num + delta) * 100) / 100);
-
-                // Preserve 2 decimal places for Ohms (0.02 Ω) or 1/2 decimals for MOhms
-                const formattedNum = unitSuffix === 'Ω'
-                    ? num.toFixed(2)
-                    : (num >= 10 ? num.toFixed(1) : num.toFixed(2));
-
-                inputEl.value = `${prefix}${formattedNum} ${unitSuffix}`;
+            function setReadingsEditorOpen(open) {
+                dom.readingsEditor.classList.toggle('hidden', !open);
+                dom.btnEditReadings.setAttribute('aria-expanded', String(open));
+                dom.btnEditReadingsLabel.textContent = open ? 'Hide readings editor' : '✎ Edit readings';
+                dom.btnEditReadingsChevron.textContent = open ? '▴' : '▾';
             }
 
             function closeVerificationModal() {
                 dom.verifyModal.classList.add('hidden');
+                state.editingRecordId = null;
                 // Remove the history entry we added on open (the popstate handler ignores this)
                 if (state.verifyHistoryPushed) {
                     state.verifyHistoryPushed = false;
@@ -1666,12 +1920,46 @@
                 }
                 if (state.currentDraft.testType !== 'Class II' && !dom.inputEarth.value.trim()) {
                     showToast('Enter the Earth bond reading.', 'error');
+                    setReadingsEditorOpen(true);
                     dom.inputEarth.focus();
                     return;
                 }
                 if (!dom.inputInsulation.value.trim()) {
                     showToast('Enter the Insulation reading.', 'error');
+                    setReadingsEditorOpen(true);
                     dom.inputInsulation.focus();
+                    return;
+                }
+                if (!dom.inputVoltage.value && !/^not tested$/i.test(dom.inputInsulation.value.trim())) {
+                    showToast('Choose the test voltage (250V or 500V).', 'error');
+                    setReadingsEditorOpen(true);
+                    dom.inputVoltage.focus();
+                    return;
+                }
+
+                const fields = {
+                    assetId,
+                    appliance,
+                    location,
+                    testType: state.currentDraft.testType,
+                    visualCheck: state.currentDraft.visualCheck,
+                    earth: dom.inputEarth.value.trim() || 'N/A',
+                    insulation: dom.inputInsulation.value.trim(),
+                    voltage: dom.inputVoltage.value || 'N/A',
+                    polarity: dom.inputPolarity.value,
+                    status: state.currentDraft.status,
+                    notes: dom.inputNotes.value.trim()
+                };
+
+                // Editing an old result: update it in place (keeps its original date and photo)
+                if (state.editingRecordId) {
+                    const idx = state.records.findIndex(r => r.id === state.editingRecordId);
+                    if (idx >= 0) state.records[idx] = { ...state.records[idx], ...fields };
+                    saveToStorage();
+                    updateAssetIdIndicators();
+                    renderRecordsLog();
+                    closeVerificationModal();
+                    showToast(`Updated ${fields.assetId}.`, 'success');
                     return;
                 }
 
@@ -1685,17 +1973,7 @@
                     timestamp: now.toISOString(),
                     formattedDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                     formattedTime: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-                    assetId,
-                    appliance,
-                    location,
-                    testType: state.currentDraft.testType,
-                    visualCheck: state.currentDraft.visualCheck,
-                    earth: dom.inputEarth.value.trim() || 'N/A',
-                    insulation: dom.inputInsulation.value.trim(),
-                    voltage: dom.inputVoltage.value,
-                    polarity: dom.inputPolarity.value,
-                    status: state.currentDraft.status,
-                    notes: dom.inputNotes.value.trim(),
+                    ...fields,
                     photo: state.currentDraft.imageDataUrl
                 };
 
@@ -1706,6 +1984,35 @@
                 closeVerificationModal();
 
                 showToast(`Saved ${record.assetId} (${record.appliance}) — ${record.status}`, record.status === 'PASS' ? 'success' : 'error');
+            }
+
+            /**
+             * Opens a saved result in the check screen for editing. Saving updates it in place.
+             */
+            function openRecordForEdit(rec) {
+                const voltage = rec.voltage && rec.voltage !== 'N/A' ? rec.voltage : '';
+                const parsed = {
+                    status: rec.status, interim: false, testType: rec.testType,
+                    earth: rec.earth, insulation: rec.insulation, voltage, polarity: rec.polarity,
+                    found: { status: true, testType: true, voltage: true, insulation: true, earth: true, polarity: true },
+                    suggestedAppliance: ''
+                };
+                openVerificationModal(parsed, rec.photo, rec.photo, '', null, false);
+                state.editingRecordId = rec.id;
+                state.currentDraft.imageDataUrl = rec.photo || '';
+                dom.inputAssetId.value = rec.assetId || '';
+                dom.inputAppliance.value = rec.appliance || '';
+                dom.inputLocation.value = rec.location || '';
+                dom.inputNotes.value = rec.notes || '';
+                dom.inputVoltage.value = voltage;
+                setModalVisualUI(rec.visualCheck || 'PASS');
+                setModalOutcomeUI(rec.status);
+                dom.verifyModalTitle.textContent = `Edit ${rec.assetId}`;
+                dom.readSummarySection.classList.add('hidden');
+                dom.rereadSection.classList.add('hidden');
+                dom.ocrFailBanner.classList.add('hidden');
+                [dom.inputEarth, dom.inputInsulation, dom.outcomeBlock, dom.inputVoltage].forEach(el => markNeedsCheck(el, false));
+                setReadingsEditorOpen(true);
             }
 
             /* =====================================================================
@@ -1794,6 +2101,7 @@
                                 <span class="text-slate-400">Visual Check: <strong class="${rec.visualCheck === 'PASS' ? 'text-emerald-400' : 'text-red-400'}">${escapeHtml(rec.visualCheck)}</strong></span>
                                 <div class="flex items-center gap-2">
                                     ${rec.photo ? `<button type="button" data-action="view-photo" data-id="${rec.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-yellow-400 font-semibold transition">View LCD Photo</button>` : ''}
+                                    <button type="button" data-action="edit-rec" data-id="${rec.id}" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">Edit</button>
                                     <button type="button" data-action="delete-rec" data-id="${rec.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800/70 hover:bg-red-950/70 text-slate-400 hover:text-red-400 font-semibold transition">Delete</button>
                                 </div>
                             </div>
@@ -1920,7 +2228,8 @@
                     if (state.verifyHistoryPushed && !dom.verifyModal.classList.contains('hidden')) {
                         state.verifyHistoryPushed = false;
                         dom.verifyModal.classList.add('hidden');
-                        showToast('Scan discarded.', 'info');
+                        showToast(state.editingRecordId ? 'Changes discarded.' : 'Scan discarded.', 'info');
+                        state.editingRecordId = null;
                     }
                 });
 
@@ -1939,6 +2248,10 @@
                 dom.btnDemoScan.addEventListener('click', () => {
                     runSimulatedHpat550Scan(dom.demoPresetSelect.value);
                 });
+
+                // AI reading settings
+                dom.btnSaveAiSettings.addEventListener('click', saveAiSettings);
+                dom.btnClearAiSettings.addEventListener('click', clearAiSettings);
 
                 // Quick Batch Location Modal
                 dom.btnQuickSetLocation.addEventListener('click', () => {
@@ -1988,20 +2301,9 @@
                     runOcrOnCanvas(state.currentDraft.sourceCanvas, state.currentDraft.imageDataUrl, '', true);
                 });
 
-                // One-Tap +/- 0.01 Micro-Adjustment Steppers
-                dom.btnEarthMinus.addEventListener('click', () => stepNumericReading(dom.inputEarth, -0.01, 'Ω', 0.02));
-                dom.btnEarthPlus.addEventListener('click', () => stepNumericReading(dom.inputEarth, 0.01, 'Ω', 0.02));
-                dom.btnInsMinus.addEventListener('click', () => stepNumericReading(dom.inputInsulation, -0.01, 'MΩ', 99.9));
-                dom.btnInsPlus.addEventListener('click', () => stepNumericReading(dom.inputInsulation, 0.01, 'MΩ', 99.9));
-
-                // Appliance Preset Chips
-                document.querySelectorAll('.preset-chip').forEach(chip => {
-                    chip.addEventListener('click', () => {
-                        dom.inputAppliance.value = chip.dataset.preset;
-                        if (chip.dataset.class) {
-                            setModalTestTypeUI(chip.dataset.class);
-                        }
-                    });
+                // "Edit readings" toggle
+                dom.btnEditReadings.addEventListener('click', () => {
+                    setReadingsEditorOpen(dom.readingsEditor.classList.contains('hidden'));
                 });
 
                 // Test Class Buttons
@@ -2039,14 +2341,16 @@
                     const record = state.records.find(r => r.id === id);
                     if (!record) return;
 
-                    if (btn.dataset.action === 'view-photo') {
+                    if (btn.dataset.action === 'edit-rec') {
+                        openRecordForEdit(record);
+                    } else if (btn.dataset.action === 'view-photo') {
                         dom.photoPreviewTitle.textContent = `${record.assetId} — ${record.appliance}`;
                         dom.photoPreviewImg.src = record.photo;
                         dom.photoPreviewModal.classList.remove('hidden');
                     } else if (btn.dataset.action === 'delete-rec') {
                         showConfirmDialog(
                             `Delete ${record.assetId}?`,
-                            `Remove ${record.appliance} (${record.location}) from the PAT log?`,
+                            `Remove ${record.appliance}${record.location ? ` (${record.location})` : ''} from the PAT log?`,
                             () => {
                                 state.records = state.records.filter(r => r.id !== id);
                                 saveToStorage();
