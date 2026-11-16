@@ -56,17 +56,21 @@ Storage (loadFromStorage, saveToStorage): Persists records in localStorage under
 
 Camera & Live OCR Loop (startCameraStream, toggleLiveAutoScan, runLiveScanTick, stopLiveAutoScan): Manages navigator.mediaDevices.getUserMedia (facingMode: 'environment') and runs a non-overlapping ~850 ms Tesseract worker loop that updates the viewfinder HUD in real time until locked.
 
-7-Segment LCD Preprocessing (preprocessForOcr): Critical image pipeline tailored to segmented LCD displays:
+Screen facts (from real photos): the HPAT550 has a colour TFT screen, NOT a 7-segment LCD. Dark mixed-case text on white, e.g. "250V", "IEC lead test [interim] result" / "Class I test result", "Earth cont. RPE: 0.02Ω" (or ">20Ω", or "-" = not tested), "Insulation RISO: >100MΩ", "Polarity: Correct", a big green PASS / red FAIL (absent on interim screens), and a limits line "RPE ≤0.1Ω, RISO ≥1MΩ" that must never be read as a reading.
 
-Upscales smaller crops to ~900px width.
+Preprocessing (cropToScreen + preprocessForOcr):
 
-Applies ctx.filter = 'blur(0.75px)' to bridge narrow gaps between seven-segment bars (preventing digits like 0.02 from splitting into strokes misread as 0.04).
+cropToScreen finds the bright white screen in a photo and crops to it.
 
-Stretches luminance contrast (minLum–maxLum to 0–255).
+Upscales smaller crops to ~900px width; slight blur(0.75px).
 
-Computes Otsu's optimal binary threshold plus thresholdBias (-45 to +45) and auto-normalises dark-mode LCD screens to black-on-white ink.
+Grayscale uses the darkest colour channel (not luminance) so green PASS / red FAIL become ink.
 
-HPAT550 Parser (parseHpat550OcrText): Line-aware regex parser extracting PASS/FAIL, Class I/Class II/Lead, 250V/500V, Insulation (MΩ), Earth Bond (Ω), and Polarity.
+Contrast stretch, then Otsu threshold plus thresholdBias (-45 to +45); auto-normalises dark backgrounds to black-on-white.
+
+HPAT550 Parser (parseHpat550OcrText): Label-aware — each value is only taken from its own labelled line. Returns `found` flags; anything not genuinely read is shown to the engineer as "Not read" and left blank (never filled with a plausible default). If neither PASS nor FAIL is found, the test is treated as not complete (`interim`) and the engineer must choose the outcome.
+
+Regression test: example photos live in "example pictures/". Run them through the real app in headless Chrome (Playwright driving the installed Chrome, uploading via #filePhotoInput) and compare the "Scanner read" tiles against what each photo shows.
 
 3. Coding Conventions & Guardrails for Agents
 
@@ -80,9 +84,9 @@ Preserve DOM ID Integrity:
 
 Every element referenced in const dom = { ... } must exist in the HTML with the exact id. Never remove or rename an HTML id without updating dom and its event listeners.
 
-Protect 7-Segment OCR Accuracy:
+Protect OCR Accuracy:
 
-Do not remove preprocessForOcr() or the character whitelist (ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.<>:/()-ΩM ) when changing OCR calls; raw camera frames without Otsu thresholding and segment gap-bridging suffer from glare and 2 vs 4 / 5 vs 6 digit confusion.
+Do not remove preprocessForOcr() or OCR_CHAR_WHITELIST when changing OCR calls. The whitelist must include lowercase letters (the screen labels are mixed case). Never let a missed reading fall back to a fake value — leave it blank and flag it.
 
 Always terminate Tesseract workers (await worker.terminate()) when stopping liveScan or finishing single-shot OCR to avoid WebAssembly memory leaks on mobile Safari/Chrome.
 

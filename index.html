@@ -170,7 +170,7 @@
                         <div class="w-full h-full flex flex-col justify-between p-3 text-[10px] font-mono text-yellow-300/70">
                             <!-- Top Status Bar Guide (PASS / FAIL) -->
                             <div id="hudStatusBar" class="border border-dashed border-emerald-400/50 bg-slate-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors">
-                                <span id="hudStatusText" class="font-bold text-slate-200">STATUS: PASS / FAIL</span>
+                                <span id="hudStatusText" class="font-bold text-sm text-slate-200">STATUS: --</span>
                                 <span id="hudClassText" class="font-bold text-yellow-300">CLASS I / II / LEAD</span>
                             </div>
 
@@ -178,11 +178,11 @@
                             <div class="grid grid-cols-2 gap-2 my-auto">
                                 <div class="border border-dashed border-yellow-400/50 bg-slate-950/65 backdrop-blur-[2px] rounded-lg p-1.5 text-center">
                                     <span class="block text-[9px] text-slate-300/90">EARTH BOND</span>
-                                    <span id="hudEarthValue" class="font-extrabold text-sm sm:text-base text-yellow-300 tracking-tight">0.00 Ω</span>
+                                    <span id="hudEarthValue" class="font-extrabold text-xl sm:text-2xl text-yellow-300 tracking-tight">--</span>
                                 </div>
                                 <div class="border border-dashed border-yellow-400/50 bg-slate-950/65 backdrop-blur-[2px] rounded-lg p-1.5 text-center">
                                     <span class="block text-[9px] text-slate-300/90">INSULATION</span>
-                                    <span id="hudInsValue" class="font-extrabold text-sm sm:text-base text-yellow-300 tracking-tight">&gt;99.9 MΩ</span>
+                                    <span id="hudInsValue" class="font-extrabold text-xl sm:text-2xl text-yellow-300 tracking-tight">--</span>
                                 </div>
                             </div>
 
@@ -208,24 +208,28 @@
                 </div>
             </div>
 
-            <!-- Primary Capture Controls -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <!-- Capture Frame / Lock Reading Button (Live Video) -->
-                <div class="col-span-1 sm:col-span-2 flex gap-2">
-                    <button id="btnCaptureFrame" type="button" disabled class="flex-1 py-4 px-4 rounded-2xl bg-yellow-400 disabled:bg-slate-800 disabled:text-slate-500 hover:bg-yellow-300 active:scale-[0.99] text-slate-950 font-extrabold text-sm sm:text-base shadow-lg shadow-yellow-400/15 transition flex items-center justify-center gap-2.5 cursor-pointer disabled:cursor-not-allowed">
-                        <span class="w-3.5 h-3.5 rounded-full bg-slate-950/20 flex items-center justify-center shrink-0">
-                            <span class="w-2 h-2 rounded-full bg-current"></span>
-                        </span>
-                        <span id="btnCaptureFrameLabel">SNAP &amp; SCAN SCREEN</span>
-                    </button>
+            <!-- Primary Capture Controls: one big button + Live Read toggle -->
+            <div class="flex flex-col gap-3">
+                <!-- Take Picture (falls back to native camera if live stream unavailable) -->
+                <button id="btnCaptureFrame" type="button" class="w-full py-7 px-4 rounded-3xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.99] text-slate-950 font-extrabold text-2xl shadow-lg shadow-yellow-400/20 transition flex items-center justify-center gap-3 cursor-pointer">
+                    <svg class="w-9 h-9 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span id="btnCaptureFrameLabel">TAKE PICTURE</span>
+                </button>
 
-                    <!-- Real-Time Continuous QR-Style Live OCR Toggle -->
-                    <button id="btnToggleLiveScan" type="button" disabled title="Continuously read HPAT550 numbers in real time" class="px-4 py-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-xs sm:text-sm transition flex flex-col items-center justify-center leading-tight shrink-0 cursor-pointer disabled:cursor-not-allowed">
-                        <span id="liveScanToggleTitle">LIVE READ</span>
-                        <span id="liveScanToggleState" class="text-[10px] font-mono text-slate-400">OFF</span>
-                    </button>
-                </div>
+                <!-- Real-Time Continuous Live OCR Toggle -->
+                <button id="btnToggleLiveScan" type="button" disabled title="Continuously read HPAT550 numbers in real time" class="w-full py-3.5 px-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-base transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed">
+                    <span id="liveScanToggleTitle">LIVE READ</span>
+                    <span id="liveScanToggleState" class="text-xs font-mono text-slate-400">OFF</span>
+                </button>
+            </div>
 
+            <!-- Secondary options, collapsed out of the way -->
+            <details class="bg-slate-900/60 border border-slate-800 rounded-2xl">
+                <summary class="px-4 py-3.5 text-sm font-semibold text-slate-400 cursor-pointer select-none">More options</summary>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 px-4 pb-4">
                 <!-- Fallback File Upload / Native Camera Photo -->
                 <label class="py-3.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 active:scale-[0.99] border border-slate-700 text-white font-semibold text-sm transition flex items-center justify-center gap-2 cursor-pointer text-center">
                     <svg class="w-5 h-5 text-yellow-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -250,10 +254,9 @@
                         <option value="fail_earth">Earth Fail</option>
                     </select>
                 </div>
-            </div>
 
             <!-- Quick Batch Context Card -->
-            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="sm:col-span-2 bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Current Batch Location</span>
                     <p id="currentBatchLocationDisplay" class="text-sm font-bold text-white mt-0.5">Not set (will prompt on scan)</p>
@@ -264,14 +267,8 @@
                     </button>
                 </div>
             </div>
-
-            <!-- Field Tips -->
-            <div class="bg-slate-900/50 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 flex items-start gap-3">
-                <span class="text-yellow-400 font-bold text-sm mt-0.5">⚡</span>
-                <p class="leading-relaxed">
-                    <strong class="text-slate-200">UK PAT Field Tip:</strong> Hold your phone ~15–20 cm from the Martindale HPAT550 LCD display so the <span class="font-mono text-slate-300">PASS/FAIL</span> banner and <span class="font-mono text-slate-300">Ω / MΩ</span> digits fill the yellow frame. Segment-bridging OCR prevents <span class="font-mono text-slate-300">0.02</span>/<span class="font-mono text-slate-300">0.04</span> misreads, and offline storage saves every scan automatically.
-                </p>
             </div>
+            </details>
         </section>
 
         <!-- ==================== TAB 2: RESULTS LOG VIEW ==================== -->
@@ -366,7 +363,7 @@
             <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
                 <div class="flex items-center gap-2.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse"></span>
-                    <h2 class="font-extrabold text-base text-white">Verify &amp; Log PAT Result</h2>
+                    <h2 class="font-extrabold text-base text-white">Check the Reading</h2>
                 </div>
                 <button id="btnCloseVerifyModal" type="button" class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
@@ -378,58 +375,70 @@
             <!-- Modal Scrollable Form Body -->
             <form id="verifyForm" class="p-5 overflow-y-auto flex-1 flex flex-col gap-4">
                 
-                <!-- Top Strip: Captured Raw LCD + Processed OCR Preview + Overall PASS/FAIL Toggle -->
-                <div class="grid grid-cols-12 gap-3 items-stretch bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
-                    <!-- Dual Thumbnail View: Raw LCD Photo & Binary OCR View -->
-                    <div class="col-span-6 grid grid-cols-2 gap-1.5">
-                        <div class="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-700 flex items-center justify-center min-h-[96px]">
-                            <img id="capturedThumbnail" src="" alt="Raw HPAT550 Screen" class="w-full h-full object-cover">
-                            <span class="absolute bottom-1 left-1 bg-slate-950/85 text-[9px] font-mono text-slate-300 px-1.5 py-0.5 rounded">RAW LCD</span>
-                        </div>
-                        <div class="relative rounded-xl overflow-hidden bg-white border border-yellow-400/50 flex items-center justify-center min-h-[96px]">
-                            <img id="processedThumbnail" src="" alt="Processed Binary OCR Input" class="w-full h-full object-cover">
-                            <span class="absolute bottom-1 left-1 bg-slate-950/90 text-[9px] font-mono text-yellow-400 px-1.5 py-0.5 rounded">OCR VIEW</span>
+                <!-- OCR failure banner -->
+                <div id="ocrFailBanner" class="hidden rounded-2xl border-2 border-amber-400 bg-amber-950/60 p-3.5 text-sm font-bold text-amber-200">
+                    Couldn't read the screen. Check the photo and type the readings in below.
+                </div>
+
+                <!-- Large captured photo -->
+                <div class="relative rounded-2xl overflow-hidden bg-black border border-slate-700">
+                    <img id="capturedThumbnail" src="" alt="Raw HPAT550 Screen" class="w-full max-h-[34vh] object-contain">
+                    <span class="absolute top-2 left-2 bg-slate-950/85 text-[11px] font-bold text-slate-200 px-2 py-0.5 rounded">YOUR PHOTO</span>
+                </div>
+
+                <!-- What the scanner read — big, obvious tiles -->
+                <div>
+                    <h3 class="text-sm font-extrabold uppercase tracking-wider text-yellow-400 mb-2">Scanner read — check against the photo</h3>
+                    <div id="readSummaryGrid" class="grid grid-cols-2 gap-2"></div>
+                </div>
+
+                <!-- Overall outcome & visual check -->
+                <div id="outcomeBlock" class="grid grid-cols-2 gap-3 bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                    <div>
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Overall Result</span>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button type="button" id="btnOutcomePass" class="py-3 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1 bg-emerald-500/20 border-emerald-500 text-emerald-400">
+                                ✓ PASS
+                            </button>
+                            <button type="button" id="btnOutcomeFail" class="py-3 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1 bg-slate-900 border-slate-700 text-slate-400">
+                                ✕ FAIL
+                            </button>
                         </div>
                     </div>
-
-                    <div class="col-span-6 flex flex-col justify-between gap-2">
-                        <div>
-                            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Overall Outcome</span>
-                            <div class="grid grid-cols-2 gap-1.5">
-                                <button type="button" id="btnOutcomePass" class="py-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 transition flex items-center justify-center gap-1 bg-emerald-500/20 border-emerald-500 text-emerald-400">
-                                    ✓ PASS
-                                </button>
-                                <button type="button" id="btnOutcomeFail" class="py-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 transition flex items-center justify-center gap-1 bg-slate-900 border-slate-700 text-slate-400">
-                                    ✕ FAIL
-                                </button>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-                            <span>Formal Visual:</span>
-                            <div class="flex gap-1">
-                                <button type="button" id="btnVisualPass" class="px-2 py-1 rounded-lg font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">PASS</button>
-                                <button type="button" id="btnVisualFail" class="px-2 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700">FAIL</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Live LCD Threshold & Invert Re-OCR Controls -->
-                    <div class="col-span-12 pt-2.5 mt-0.5 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-2">
-                        <div class="flex items-center gap-2 flex-1 min-w-[180px]">
-                            <label for="inputOcrBias" class="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">LCD Contrast</label>
-                            <input id="inputOcrBias" type="range" min="-45" max="45" step="5" value="0" class="w-full accent-yellow-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
-                            <span id="ocrBiasValue" class="font-mono text-[10px] text-yellow-400 w-7 text-right">0</span>
-                        </div>
-                        <div class="flex items-center gap-1.5">
-                            <button type="button" id="btnToggleInvertLcd" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-900 text-slate-300 border-slate-700 hover:border-yellow-400 transition">
-                                Invert LCD: OFF
-                            </button>
-                            <button type="button" id="btnReRunOcr" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-yellow-400/20 text-yellow-400 border border-yellow-400/50 hover:bg-yellow-400/30 transition">
-                                ↻ Re-Read
-                            </button>
+                    <div>
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Visual Check</span>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button type="button" id="btnVisualPass" class="py-3 rounded-xl font-bold text-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">PASS</button>
+                            <button type="button" id="btnVisualFail" class="py-3 rounded-xl font-bold text-sm bg-slate-800 text-slate-400 border border-slate-700">FAIL</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- Re-read tuning (collapsed) -->
+                <details class="bg-slate-950/60 border border-slate-800 rounded-2xl">
+                    <summary class="px-3.5 py-3 text-sm font-semibold text-slate-300 cursor-pointer select-none">Wrong numbers? Adjust &amp; re-read</summary>
+                    <div class="px-3.5 pb-3.5 flex flex-col gap-3">
+                        <div class="relative rounded-xl overflow-hidden bg-white border border-yellow-400/50 max-w-[220px]">
+                            <img id="processedThumbnail" src="" alt="Processed Binary OCR Input" class="w-full h-auto">
+                            <span class="absolute bottom-1 left-1 bg-slate-950/90 text-[9px] font-mono text-yellow-400 px-1.5 py-0.5 rounded">OCR VIEW</span>
+                        </div>
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 flex-1 min-w-[180px]">
+                                <label for="inputOcrBias" class="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">LCD Contrast</label>
+                                <input id="inputOcrBias" type="range" min="-45" max="45" step="5" value="0" class="w-full accent-yellow-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                                <span id="ocrBiasValue" class="font-mono text-[10px] text-yellow-400 w-7 text-right">0</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" id="btnToggleInvertLcd" class="px-3 py-2 rounded-lg text-xs font-bold border bg-slate-900 text-slate-300 border-slate-700 hover:border-yellow-400 transition">
+                                    Invert LCD: OFF
+                                </button>
+                                <button type="button" id="btnReRunOcr" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-yellow-400/20 text-yellow-400 border border-yellow-400/50 hover:bg-yellow-400/30 transition">
+                                    ↻ Re-Read
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
 
                 <!-- Asset ID & Appliance Description -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -469,7 +478,7 @@
                 <!-- Martindale HPAT550 Extracted Readings Grid -->
                 <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 flex flex-col gap-3">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-extrabold uppercase tracking-wider text-yellow-400">HPAT550 Measured Readings</span>
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-yellow-400">Readings to save (edit if wrong)</span>
                         <button type="button" id="btnToggleRawOcr" class="text-[11px] text-slate-400 underline hover:text-white">View Raw OCR</button>
                     </div>
 
@@ -521,6 +530,7 @@
                                 <option value="N/A">N/A (Appliance)</option>
                                 <option value="PASS">PASS (Wired OK)</option>
                                 <option value="FAIL">FAIL (Reversed/Open)</option>
+                                <option value="NOT TESTED">Not tested</option>
                             </select>
                         </div>
                     </div>
@@ -753,8 +763,18 @@
                 printSummaryText: document.getElementById('printSummaryText'),
                 printTableBody: document.getElementById('printTableBody'),
                 captureCanvas: document.getElementById('captureCanvas'),
-                demoScreenCanvas: document.getElementById('demoScreenCanvas')
+                demoScreenCanvas: document.getElementById('demoScreenCanvas'),
+                ocrFailBanner: document.getElementById('ocrFailBanner'),
+                readSummaryGrid: document.getElementById('readSummaryGrid'),
+                outcomeBlock: document.getElementById('outcomeBlock')
             };
+
+            const LIVE_BTN_OFF_CLASS = 'w-full py-3.5 px-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-base transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed';
+            const LIVE_BTN_ON_CLASS = 'w-full py-3.5 px-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-300 font-extrabold text-base transition flex items-center justify-center gap-2 cursor-pointer';
+
+            // OCR character whitelist. The HPAT550 colour screen uses mixed-case labels
+            // ("Earth cont.", "Insulation", "Polarity: Correct"), so lowercase is required.
+            const OCR_CHAR_WHITELIST = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.<>:/()-ΩM ';
 
             /* =====================================================================
              * 1. INITIALIZATION & LOCAL STORAGE
@@ -913,18 +933,17 @@
                     dom.cameraVideo.srcObject = stream;
                     dom.cameraVideo.classList.remove('hidden');
                     dom.cameraPlaceholder.classList.add('hidden');
-                    dom.btnCaptureFrame.disabled = false;
                     dom.btnToggleLiveScan.disabled = false;
                 } catch (err) {
                     console.warn('Camera access note:', err.message);
                     dom.cameraVideo.classList.add('hidden');
                     dom.cameraPlaceholder.classList.remove('hidden');
-                    dom.btnCaptureFrame.disabled = true;
+                    // Take Picture stays enabled: it falls back to the phone's own camera app
                     dom.btnToggleLiveScan.disabled = true;
                     if (!silentFail) {
                         dom.cameraStatusTitle.textContent = 'Camera Permission Blocked';
-                        dom.cameraStatusDesc.textContent = 'Use "Upload / Take Photo" below to snap with your native camera, or try "Demo Scan".';
-                        showToast('Camera blocked. Use Upload / Take Photo instead.', 'info');
+                        dom.cameraStatusDesc.textContent = 'Tap TAKE PICTURE to use your phone camera app instead.';
+                        showToast('Camera blocked. TAKE PICTURE will open your camera app.', 'info');
                     }
                 }
             }
@@ -955,7 +974,8 @@
              */
             function captureFromLiveVideo() {
                 if (!state.mediaStream || dom.cameraVideo.readyState < 2) {
-                    showToast('Camera stream not ready yet.', 'error');
+                    // No live stream (blocked / unsupported): use the phone's native camera
+                    dom.filePhotoInput.click();
                     return;
                 }
 
@@ -1000,19 +1020,19 @@
 
                 state.liveScan.active = true;
                 state.liveScan.lastParsed = null;
-                dom.btnToggleLiveScan.className = 'px-4 py-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-300 font-extrabold text-xs sm:text-sm transition flex flex-col items-center justify-center leading-tight shrink-0 cursor-pointer';
-                dom.liveScanToggleState.textContent = 'ON • LIVE';
-                dom.liveScanToggleState.className = 'text-[10px] font-mono text-emerald-300 font-bold';
+                dom.btnToggleLiveScan.className = LIVE_BTN_ON_CLASS;
+                dom.liveScanToggleState.textContent = 'ON • tap to stop';
+                dom.liveScanToggleState.className = 'text-xs font-mono text-emerald-300 font-bold';
                 dom.liveScanPulseDot.classList.remove('hidden');
                 dom.reticleHeaderLabel.textContent = 'LIVE READING HPAT550...';
-                dom.btnCaptureFrameLabel.textContent = 'LOCK & LOG READING';
+                dom.btnCaptureFrameLabel.textContent = 'USE THIS READING';
                 dom.hudFooterTip.textContent = 'Hold steady — numbers update automatically';
 
                 try {
                     if (!state.liveScan.worker) {
                         const worker = await Tesseract.createWorker('eng', 1);
                         await worker.setParameters({
-                            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.<>:/()-ΩM ',
+                            tessedit_char_whitelist: OCR_CHAR_WHITELIST,
                             tessedit_pageseg_mode: '6'
                         });
                         state.liveScan.worker = worker;
@@ -1024,7 +1044,7 @@
                 } catch (err) {
                     console.error('Live OCR init failed:', err);
                     stopLiveAutoScan();
-                    showToast('Could not start Live Read — use Snap & Scan instead.', 'error');
+                    showToast('Could not start Live Read — use TAKE PICTURE instead.', 'error');
                 }
             }
 
@@ -1062,17 +1082,22 @@
             }
 
             function updateViewfinderLiveHud(parsed) {
-                const isFail = parsed.status === 'FAIL';
-                dom.hudStatusText.textContent = `STATUS: ${parsed.status}`;
-                dom.hudStatusText.className = isFail ? 'font-extrabold text-red-400' : 'font-extrabold text-emerald-400';
-                dom.hudStatusBar.className = isFail
-                    ? 'border border-red-400/70 bg-red-950/65 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors'
-                    : 'border border-emerald-400/70 bg-emerald-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors';
+                const f = parsed.found || {};
+                const status = parsed.interim ? 'IN PROGRESS' : f.status ? parsed.status : '--';
+                const earth = f.earth ? parsed.earth : '--';
+                const ins = f.insulation ? parsed.insulation : '--';
+                const isFail = status === 'FAIL';
+                const barBase = 'backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors';
+                dom.hudStatusText.textContent = `STATUS: ${status}`;
+                dom.hudStatusText.className = !f.status ? 'font-bold text-sm text-slate-200'
+                    : isFail ? 'font-extrabold text-sm text-red-400' : 'font-extrabold text-sm text-emerald-400';
+                dom.hudStatusBar.className = !f.status ? `border border-dashed border-slate-400/50 bg-slate-950/55 ${barBase}`
+                    : isFail ? `border border-red-400/70 bg-red-950/65 ${barBase}` : `border border-emerald-400/70 bg-emerald-950/55 ${barBase}`;
 
-                dom.hudClassText.textContent = parsed.testType.toUpperCase();
-                dom.hudEarthValue.textContent = parsed.earth;
-                dom.hudInsValue.textContent = parsed.insulation;
-                dom.hudFooterTip.textContent = `Live: ${parsed.status} | ${parsed.earth} | ${parsed.insulation} — Tap LOCK`;
+                dom.hudClassText.textContent = f.testType ? parsed.testType.toUpperCase() : '--';
+                dom.hudEarthValue.textContent = earth;
+                dom.hudInsValue.textContent = ins;
+                dom.hudFooterTip.textContent = `Live: ${status} | ${earth} | ${ins} — tap USE THIS READING`;
             }
 
             async function stopLiveAutoScan() {
@@ -1090,18 +1115,18 @@
                 }
 
                 // Reset Viewfinder HUD & Toggle Button UI
-                dom.btnToggleLiveScan.className = 'px-4 py-4 rounded-2xl bg-slate-800 disabled:bg-slate-900 disabled:text-slate-600 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-extrabold text-xs sm:text-sm transition flex flex-col items-center justify-center leading-tight shrink-0 cursor-pointer disabled:cursor-not-allowed';
+                dom.btnToggleLiveScan.className = LIVE_BTN_OFF_CLASS;
                 dom.liveScanToggleState.textContent = 'OFF';
-                dom.liveScanToggleState.className = 'text-[10px] font-mono text-slate-400';
+                dom.liveScanToggleState.className = 'text-xs font-mono text-slate-400';
                 dom.liveScanPulseDot.classList.add('hidden');
                 dom.reticleHeaderLabel.textContent = 'Martindale HPAT550 LCD';
-                dom.btnCaptureFrameLabel.textContent = 'SNAP & SCAN SCREEN';
+                dom.btnCaptureFrameLabel.textContent = 'TAKE PICTURE';
                 dom.hudStatusBar.className = 'border border-dashed border-emerald-400/50 bg-slate-950/55 backdrop-blur-[2px] rounded px-2 py-1 flex justify-between items-center transition-colors';
-                dom.hudStatusText.textContent = 'STATUS: PASS / FAIL';
-                dom.hudStatusText.className = 'font-bold text-slate-200';
+                dom.hudStatusText.textContent = 'STATUS: --';
+                dom.hudStatusText.className = 'font-bold text-sm text-slate-200';
                 dom.hudClassText.textContent = 'CLASS I / II / LEAD';
-                dom.hudEarthValue.textContent = '0.00 Ω';
-                dom.hudInsValue.textContent = '>99.9 MΩ';
+                dom.hudEarthValue.textContent = '--';
+                dom.hudInsValue.textContent = '--';
                 dom.hudFooterTip.textContent = 'Keep screen flat & avoid glare';
             }
 
@@ -1296,7 +1321,7 @@
 
                     // Constrain OCR character set to valid Martindale HPAT550 screen symbols
                     await worker.setParameters({
-                        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.<>:/()-ΩM ',
+                        tessedit_char_whitelist: OCR_CHAR_WHITELIST,
                         tessedit_pageseg_mode: '6'
                     });
 
@@ -1315,13 +1340,17 @@
                     console.error('OCR Error:', err);
                     dom.ocrLoadingOverlay.classList.add('hidden');
                     showToast('OCR had trouble reading image — verify readings below.', 'error');
+                    // Nothing was read: leave readings blank so nothing is saved by mistake
                     const fallbackParsed = {
-                        status: 'PASS',
+                        status: '',
+                        interim: true,
                         testType: 'Class I',
-                        earth: '0.02 Ω',
-                        insulation: '>99.9 MΩ',
+                        earth: '',
+                        insulation: '',
                         voltage: '500V',
                         polarity: 'N/A',
+                        found: { status: false, testType: false, voltage: false, insulation: false, earth: false, polarity: true },
+                        ocrFailed: true,
                         suggestedAppliance
                     };
                     openVerificationModal(fallbackParsed, thumbDataUrl, thumbDataUrl, '[OCR Fallback Mode]', canvas, isReRun);
@@ -1337,7 +1366,79 @@
              * 4. Computes Otsu's optimal binary threshold (+ user contrast bias) and auto-normalises
              *    polarity to dark-text-on-white-background for Tesseract.
              */
+            /**
+             * Finds the HPAT550's bright white screen inside a photo and crops to it, so the
+             * background (casing, desk, hand) doesn't confuse OCR. Returns the original canvas
+             * if no clear screen region is found.
+             */
+            function cropToScreen(sourceCanvas) {
+                const sw = 240;
+                const sh = Math.max(1, Math.round(sourceCanvas.height * (sw / sourceCanvas.width)));
+                const small = document.createElement('canvas');
+                small.width = sw;
+                small.height = sh;
+                const sctx = small.getContext('2d');
+                sctx.drawImage(sourceCanvas, 0, 0, sw, sh);
+                const d = sctx.getImageData(0, 0, sw, sh).data;
+
+                // "Whiteness" = darkest colour channel; the screen is the whitest large area
+                const white = new Uint8Array(sw * sh);
+                let maxW = 0;
+                for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+                    const v = Math.min(d[i], d[i + 1], d[i + 2]);
+                    white[p] = v;
+                    if (v > maxW) maxW = v;
+                }
+                const thr = maxW * 0.72;
+
+                // Longest run of indices whose bright-pixel fraction exceeds minFrac (allowing small gaps)
+                const longestRun = (counts, total, minFrac) => {
+                    let best = [0, -1], start = -1, gap = 0;
+                    for (let i = 0; i <= counts.length; i++) {
+                        const on = i < counts.length && counts[i] / total >= minFrac;
+                        if (on) {
+                            if (start < 0) start = i;
+                            gap = 0;
+                        } else if (start >= 0 && (++gap > 3 || i === counts.length)) {
+                            const end = i - gap;
+                            if (end - start > best[1] - best[0]) best = [start, end];
+                            start = -1;
+                            gap = 0;
+                        }
+                    }
+                    return best;
+                };
+
+                const rowCounts = new Array(sh).fill(0);
+                for (let y = 0; y < sh; y++) {
+                    for (let x = 0; x < sw; x++) if (white[y * sw + x] > thr) rowCounts[y]++;
+                }
+                const [y0, y1] = longestRun(rowCounts, sw, 0.3);
+                if (y1 - y0 < sh * 0.12) return sourceCanvas;
+
+                const colCounts = new Array(sw).fill(0);
+                for (let y = y0; y <= y1; y++) {
+                    for (let x = 0; x < sw; x++) if (white[y * sw + x] > thr) colCounts[x]++;
+                }
+                const [x0, x1] = longestRun(colCounts, y1 - y0 + 1, 0.3);
+                if (x1 - x0 < sw * 0.2) return sourceCanvas;
+
+                // Map back to full resolution with a small margin
+                const k = sourceCanvas.width / sw;
+                const m = 4;
+                const cx = Math.max(0, Math.round((x0 - m) * k));
+                const cy = Math.max(0, Math.round((y0 - m) * k));
+                const cw = Math.min(sourceCanvas.width - cx, Math.round((x1 - x0 + 2 * m) * k));
+                const ch = Math.min(sourceCanvas.height - cy, Math.round((y1 - y0 + 2 * m) * k));
+                const out = document.createElement('canvas');
+                out.width = cw;
+                out.height = ch;
+                out.getContext('2d').drawImage(sourceCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+                return out;
+            }
+
             function preprocessForOcr(sourceCanvas, options = { invert: false, thresholdBias: 0 }) {
+                sourceCanvas = cropToScreen(sourceCanvas);
                 const scale = sourceCanvas.width < 850 ? Math.min(2, 900 / sourceCanvas.width) : 1;
                 const w = Math.round(sourceCanvas.width * scale);
                 const h = Math.round(sourceCanvas.height * scale);
@@ -1357,11 +1458,13 @@
                 const pixelCount = w * h;
                 const gray = new Uint8Array(pixelCount);
 
-                // Step 1: Luminance grayscale & min/max discovery for contrast stretching
+                // Step 1: Grayscale from the darkest colour channel (not luminance) so that
+                // coloured text — the HPAT550's green PASS / red FAIL — becomes ink, while
+                // the white screen background stays white. Then min/max for contrast stretching.
                 let minLum = 255;
                 let maxLum = 0;
                 for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-                    const lum = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+                    const lum = Math.min(data[i], data[i + 1], data[i + 2]);
                     gray[p] = lum;
                     if (lum < minLum) minLum = lum;
                     if (lum > maxLum) maxLum = lum;
@@ -1429,83 +1532,141 @@
             }
 
             /**
-             * Smart Regex & Line-Aware Parser tuned to Martindale HPAT550 LCD screens
+             * Label-aware parser for the Martindale HPAT550 colour result screen, e.g.
+             *   250V                         Null  52
+             *   IEC lead test [interim] result   |  Class I / Class II test result
+             *   Earth cont. RPE:     0.02Ω   (or >20Ω, or - when not yet tested)
+             *   Insulation RISO:     >100MΩ  (or -)
+             *   Polarity:            Correct (or -)
+             *   PASS / FAIL                  (absent on interim screens)
+             *   RPE ≤0.1Ω, RISO ≥1MΩ        <- limits line: never treated as a reading
+             * Values are only taken from their own labelled line, so nothing lands in the wrong field.
+             * `found` records what was genuinely read; anything else is shown as "Not read".
              */
             function parseHpat550OcrText(rawText) {
                 const upper = (rawText || '').toUpperCase().replace(/\r/g, '\n');
                 const lines = upper.split('\n').map(l => l.trim()).filter(Boolean);
+                const found = { status: false, testType: false, voltage: false, insulation: false, earth: false, polarity: false };
+                const NOT_TESTED = 'Not tested';
 
-                // 1. Overall Status: PASS or FAIL
-                let status = 'PASS';
-                if (/\bFAIL\b/.test(upper) || /F[A4][I1L]L/.test(upper)) {
-                    status = 'FAIL';
-                } else if (/\bPASS\b/.test(upper) || /P[A4]SS/.test(upper)) {
-                    status = 'PASS';
+                // Text after the label's colon (OCR often turns Ω into Q / O / 0)
+                const valueAfterColon = (line) => {
+                    const idx = line.lastIndexOf(':');
+                    return (idx >= 0 ? line.slice(idx + 1) : line).trim();
+                };
+                const isDash = (v) => /^[-–—~_]/.test(v);
+
+                // 1. Overall status. Interim screens have no PASS/FAIL yet.
+                // Rule: if neither PASS nor FAIL is found, the test is treated as not complete.
+                let interim = /INTERIM|INTER1M/.test(upper);
+                let status = '';
+                if (!interim) {
+                    if (/\bFA[I1L]L\b/.test(upper)) {
+                        status = 'FAIL';
+                        found.status = true;
+                    } else if (/\bP[A4]SS\b/.test(upper)) {
+                        status = 'PASS';
+                        found.status = true;
+                    } else {
+                        interim = true;
+                    }
                 }
 
-                // 2. Test Type: Class I, Class II, or Lead
+                // 2. Test type from the title line ("Class I test result", "IEC lead test result")
                 let testType = 'Class I';
-                if (/CLASS\s*(II|2|11)\b/.test(upper) || /\bCL\s*II\b/.test(upper)) {
+                if (/CLASS\s*(II|IL|LI|LL|11|2)\b/.test(upper)) {
                     testType = 'Class II';
-                } else if (/\bLEAD\b/.test(upper) || /\bIEC\b/.test(upper) || /POLARITY/.test(upper)) {
+                    found.testType = true;
+                } else if (/\bIEC\b|\bLEAD\b/.test(upper)) {
                     testType = 'Lead';
-                } else if (/CLASS\s*(I|1)\b/.test(upper) || /\bCL\s*I\b/.test(upper)) {
+                    found.testType = true;
+                } else if (/CLASS\s*(I|L|1)\b/.test(upper)) {
                     testType = 'Class I';
+                    found.testType = true;
                 }
 
-                // 3. Insulation Test Voltage (250V or 500V)
+                // 3. Insulation test voltage (top-left of screen)
                 let voltage = '500V';
-                if (/\b250\s*V/.test(upper)) {
-                    voltage = '250V';
-                } else if (/\b500\s*V/.test(upper)) {
-                    voltage = '500V';
+                // Only 250V / 500V exist, so the first digit decides (OCR may give "280V" / "2ROV")
+                const voltMatch = upper.match(/\b([25])[0-9A-Z][0O]\s*V\b/);
+                if (voltMatch) {
+                    voltage = voltMatch[1] === '2' ? '250V' : '500V';
+                    found.voltage = true;
                 }
 
-                // 4. Insulation Resistance (>20 MΩ, >99.9 MΩ, >100 MΩ, or 0.00–99.9 MΩ)
-                let insulation = '>99.9 MΩ';
-                const insLine = lines.find(l => /INS|MΩ|MOHM|\bMO\b/.test(l)) || upper;
-                const insOverMatch = insLine.match(/(>|&GT;)\s*(20|99\.9|100|199|200|299|500)\s*(M|MQ|MO|MΩ)?/);
-                const insValMatch = insLine.match(/(\d{1,3}(?:\.\d{1,2})?)\s*(MΩ|MQ|MO|MOHM)/);
-                if (insOverMatch) {
-                    insulation = `>${insOverMatch[2]} MΩ`;
-                } else if (insValMatch) {
-                    insulation = `${insValMatch[1]} MΩ`;
-                }
-
-                // 5. Earth Continuity (0.00 to 19.99 Ω) - prioritise Earth line & preserve exact decimal
-                let earth = testType === 'Class II' ? 'N/A' : '0.02 Ω';
-                const earthLine = lines.find(l => /EARTH|BOND|Ω|OHM/.test(l) && !/MΩ|MOHM|INS/.test(l)) || '';
-                const earthLineMatch = earthLine.match(/\b(\d{1,2}\.\d{2})\b/);
-                const earthExplicitMatch = upper.match(/EARTH[^0-9N]*(\d{1,2}\.\d{2})/);
-                const ohmMatch = upper.match(/\b([01]?\d\.\d{2})\s*(Ω|OHM|Q)?\b/);
-
-                if (testType === 'Class II' && /N\/A/.test(upper)) {
+                // 4. Earth continuity — only from the "Earth cont." line
+                let earth = '';
+                if (testType === 'Class II') {
                     earth = 'N/A';
-                } else if (earthLineMatch) {
-                    earth = `${earthLineMatch[1]} Ω`;
-                } else if (earthExplicitMatch) {
-                    earth = `${earthExplicitMatch[1]} Ω`;
-                } else if (ohmMatch) {
-                    earth = `${ohmMatch[1]} Ω`;
+                    found.earth = true;
+                } else {
+                    const earthLine = lines.find(l => /EARTH|[A-Z]ARTH|EA[RT]TH|\bCONT?\b/.test(l));
+                    if (earthLine) {
+                        const v = valueAfterColon(earthLine);
+                        const over = v.match(/^>\s*(\d{1,2})/);
+                        const num = v.match(/(\d{1,2})[.,](\d{2})/);
+                        if (over) {
+                            earth = `>${over[1]} Ω`;
+                            found.earth = true;
+                        } else if (num) {
+                            earth = `${num[1]}.${num[2]} Ω`;
+                            found.earth = true;
+                        } else if (isDash(v)) {
+                            earth = NOT_TESTED;
+                            found.earth = true;
+                        }
+                    }
                 }
 
-                // 6. Polarity (for IEC Lead tests)
+                // 5. Insulation resistance — only from the "Insulation" line
+                let insulation = '';
+                const insLine = lines.find(l => /SULAT|INSUL|NSUL/.test(l));
+                if (insLine) {
+                    const v = valueAfterColon(insLine);
+                    const over = v.match(/^>\s*(\d{1,3}(?:[.,]\d)?)/);
+                    const num = v.match(/^(\d{1,3}(?:[.,]\d{1,2})?)\s*M/);
+                    if (over) {
+                        insulation = `>${over[1].replace(',', '.')} MΩ`;
+                        found.insulation = true;
+                    } else if (num) {
+                        insulation = `${num[1].replace(',', '.')} MΩ`;
+                        found.insulation = true;
+                    } else if (isDash(v)) {
+                        insulation = NOT_TESTED;
+                        found.insulation = true;
+                    }
+                }
+
+                // 6. Polarity (IEC lead tests only)
                 let polarity = 'N/A';
                 if (testType === 'Lead') {
-                    if (/POLARITY\s*FAIL/.test(upper) || (status === 'FAIL' && /POLARITY/.test(upper))) {
-                        polarity = 'FAIL';
-                    } else {
-                        polarity = 'PASS';
+                    const polLine = lines.find(l => /POLA|ARITY/.test(l));
+                    if (polLine) {
+                        const v = valueAfterColon(polLine);
+                        if (/INCORR|REVERS|FAIL|OPEN|WRONG/.test(v)) {
+                            polarity = 'FAIL';
+                            found.polarity = true;
+                        } else if (/CORR/.test(v)) {
+                            polarity = 'PASS';
+                            found.polarity = true;
+                        } else if (isDash(v)) {
+                            polarity = 'NOT TESTED';
+                            found.polarity = true;
+                        }
                     }
+                } else {
+                    found.polarity = true; // not applicable
                 }
 
                 return {
                     status,
+                    interim,
                     testType,
                     earth,
                     insulation,
                     voltage,
                     polarity,
+                    found,
                     suggestedAppliance: ''
                 };
             }
@@ -1519,7 +1680,7 @@
                     imageDataUrl: thumbDataUrl || '',
                     processedDataUrl: processedThumbUrl || thumbDataUrl || '',
                     rawOcr: rawOcrText || '',
-                    status: parsed.status || 'PASS',
+                    status: parsed.status || '',
                     visualCheck: preserveUserMeta ? state.currentDraft.visualCheck : 'PASS',
                     testType: parsed.testType || 'Class I'
                 };
@@ -1545,8 +1706,8 @@
                     dom.inputNotes.value = '';
                 }
 
-                dom.inputEarth.value = parsed.earth || '0.02 Ω';
-                dom.inputInsulation.value = parsed.insulation || '>99.9 MΩ';
+                dom.inputEarth.value = parsed.earth || '';
+                dom.inputInsulation.value = parsed.insulation || '';
                 dom.inputVoltage.value = parsed.voltage || '500V';
                 dom.inputPolarity.value = parsed.polarity || 'N/A';
 
@@ -1554,18 +1715,73 @@
                 setModalVisualUI(state.currentDraft.visualCheck);
                 setModalTestTypeUI(state.currentDraft.testType);
 
-                dom.verifyModal.classList.remove('hidden');
+                // Show what the scanner actually read, and flag anything it missed
+                const found = parsed.found || {};
+                renderReadSummary(parsed);
+                dom.ocrFailBanner.classList.toggle('hidden', !parsed.ocrFailed);
+                markNeedsCheck(dom.inputEarth, !found.earth);
+                markNeedsCheck(dom.inputInsulation, !found.insulation);
+                markNeedsCheck(dom.outcomeBlock, !found.status);
+                markNeedsCheck(dom.inputVoltage, !found.voltage);
 
-                // Focus appliance or location input for fast mobile workflow
-                if (!preserveUserMeta) {
-                    setTimeout(() => {
-                        if (!dom.inputAppliance.value) {
-                            dom.inputAppliance.focus();
-                        } else if (!dom.inputLocation.value) {
-                            dom.inputLocation.focus();
-                        }
-                    }, 120);
+                dom.verifyModal.classList.remove('hidden');
+                // Scroll to the top so the photo and readings are seen first (no auto-focus: keyboard would hide them)
+                dom.verifyForm.scrollTop = 0;
+            }
+
+            /**
+             * Renders big "Scanner read" tiles. Anything not read is shown as a clear amber warning.
+             */
+            function renderReadSummary(parsed) {
+                const f = parsed.found || {};
+                const isNotTested = v => /^not tested$/i.test(v || '');
+                const tiles = [
+                    { label: 'Result', value: parsed.status, ok: f.status, tone: parsed.status === 'FAIL' ? 'fail' : 'pass', interim: parsed.interim },
+                    { label: 'Class', value: parsed.testType === 'Lead' ? 'IEC Lead' : parsed.testType, ok: f.testType },
+                    { label: 'Earth bond', value: parsed.earth, ok: f.earth },
+                    { label: 'Insulation', value: parsed.insulation, sub: f.voltage ? `at ${parsed.voltage}` : '', ok: f.insulation }
+                ];
+                if (parsed.testType === 'Lead') {
+                    const polText = parsed.polarity === 'PASS' ? 'Correct' : parsed.polarity === 'FAIL' ? 'Incorrect' : 'Not tested';
+                    tiles.push({ label: 'Polarity', value: polText, ok: f.polarity, tone: parsed.polarity === 'FAIL' ? 'fail' : parsed.polarity === 'PASS' ? 'pass' : '' });
                 }
+
+                dom.readSummaryGrid.innerHTML = tiles.map(t => {
+                    if (t.interim) {
+                        return `<div class="rounded-2xl border-2 border-amber-400 bg-amber-950/40 p-3">
+                            <span class="block text-[11px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(t.label)}</span>
+                            <span class="block font-extrabold text-2xl text-amber-300 leading-tight">IN PROGRESS</span>
+                            <span class="block text-[11px] font-bold text-amber-200">No PASS/FAIL on screen — test not complete</span>
+                        </div>`;
+                    }
+                    if (t.ok && isNotTested(t.value)) {
+                        return `<div class="rounded-2xl border-2 border-slate-600 bg-slate-950 p-3">
+                            <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(t.label)}</span>
+                            <span class="block font-extrabold text-2xl text-slate-300 leading-tight">Not tested</span>
+                            <span class="block text-[11px] text-slate-400">Screen shows “-”</span>
+                        </div>`;
+                    }
+                    if (!t.ok) {
+                        return `<div class="rounded-2xl border-2 border-dashed border-amber-400 bg-amber-950/40 p-3">
+                            <span class="block text-[11px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(t.label)}</span>
+                            <span class="block font-mono font-extrabold text-3xl text-amber-300 leading-tight">?</span>
+                            <span class="block text-[11px] font-bold text-amber-200">Not read — check &amp; enter below</span>
+                        </div>`;
+                    }
+                    const valueColour = t.tone === 'fail' ? 'text-red-400' : t.tone === 'pass' ? 'text-emerald-400' : 'text-white';
+                    const border = t.tone === 'fail' ? 'border-red-500' : t.tone === 'pass' ? 'border-emerald-500' : 'border-slate-600';
+                    return `<div class="rounded-2xl border-2 ${border} bg-slate-950 p-3">
+                        <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(t.label)}</span>
+                        <span class="block font-mono font-extrabold text-3xl ${valueColour} leading-tight break-words">${escapeHtml(t.value)}</span>
+                        ${t.sub ? `<span class="block text-xs font-mono text-slate-400">${escapeHtml(t.sub)}</span>` : ''}
+                    </div>`;
+                }).join('');
+            }
+
+            function markNeedsCheck(el, needsCheck) {
+                if (!el) return;
+                el.classList.toggle('ring-2', needsCheck);
+                el.classList.toggle('ring-amber-400', needsCheck);
             }
 
             /**
@@ -1608,9 +1824,14 @@
 
             function setModalOutcomeUI(outcome) {
                 state.currentDraft.status = outcome;
-                if (outcome === 'PASS') {
+                const off = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-slate-900 border-slate-700 text-slate-400';
+                if (!outcome) {
+                    // Test not complete: nothing pre-selected, the engineer must choose
+                    dom.btnOutcomePass.className = off;
+                    dom.btnOutcomeFail.className = off;
+                } else if (outcome === 'PASS') {
                     dom.btnOutcomePass.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-emerald-500/20 border-emerald-500 text-emerald-400';
-                    dom.btnOutcomeFail.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-slate-900 border-slate-700 text-slate-400';
+                    dom.btnOutcomeFail.className = off;
                 } else {
                     dom.btnOutcomePass.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-slate-900 border-slate-700 text-slate-400';
                     dom.btnOutcomeFail.className = 'py-2.5 rounded-xl font-extrabold text-sm border-2 transition flex items-center justify-center gap-1.5 bg-red-500/20 border-red-500 text-red-400';
@@ -1620,11 +1841,11 @@
             function setModalVisualUI(visual) {
                 state.currentDraft.visualCheck = visual;
                 if (visual === 'PASS') {
-                    dom.btnVisualPass.className = 'px-2.5 py-1 rounded-lg font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
-                    dom.btnVisualFail.className = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700';
+                    dom.btnVisualPass.className = 'py-3 rounded-xl font-bold text-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+                    dom.btnVisualFail.className = 'py-3 rounded-xl font-bold text-sm bg-slate-800 text-slate-400 border border-slate-700';
                 } else {
-                    dom.btnVisualPass.className = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700';
-                    dom.btnVisualFail.className = 'px-2.5 py-1 rounded-lg font-bold bg-red-500/20 text-red-400 border border-red-500/40';
+                    dom.btnVisualPass.className = 'py-3 rounded-xl font-bold text-sm bg-slate-800 text-slate-400 border border-slate-700';
+                    dom.btnVisualFail.className = 'py-3 rounded-xl font-bold text-sm bg-red-500/20 text-red-400 border border-red-500/40';
                     // Automatically mark overall outcome FAIL if visual check fails
                     setModalOutcomeUI('FAIL');
                 }
@@ -1646,10 +1867,10 @@
                     }
                     dom.inputPolarity.value = 'N/A';
                 } else if (testType === 'Lead') {
-                    if (dom.inputEarth.value === 'N/A') dom.inputEarth.value = '0.05 Ω';
+                    if (dom.inputEarth.value === 'N/A') dom.inputEarth.value = '';
                     if (dom.inputPolarity.value === 'N/A') dom.inputPolarity.value = 'PASS';
                 } else {
-                    if (dom.inputEarth.value === 'N/A') dom.inputEarth.value = '0.02 Ω';
+                    if (dom.inputEarth.value === 'N/A') dom.inputEarth.value = '';
                     dom.inputPolarity.value = 'N/A';
                 }
             }
@@ -1663,6 +1884,21 @@
 
                 if (!appliance || !location) {
                     showToast('Please enter both Appliance and Location.', 'error');
+                    return;
+                }
+                if (!state.currentDraft.status) {
+                    showToast('Test not complete — choose PASS or FAIL before saving.', 'error');
+                    dom.outcomeBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                }
+                if (state.currentDraft.testType !== 'Class II' && !dom.inputEarth.value.trim()) {
+                    showToast('Enter the Earth bond reading.', 'error');
+                    dom.inputEarth.focus();
+                    return;
+                }
+                if (!dom.inputInsulation.value.trim()) {
+                    showToast('Enter the Insulation reading.', 'error');
+                    dom.inputInsulation.focus();
                     return;
                 }
 
@@ -1682,7 +1918,7 @@
                     testType: state.currentDraft.testType,
                     visualCheck: state.currentDraft.visualCheck,
                     earth: dom.inputEarth.value.trim() || 'N/A',
-                    insulation: dom.inputInsulation.value.trim() || '>99.9 MΩ',
+                    insulation: dom.inputInsulation.value.trim(),
                     voltage: dom.inputVoltage.value,
                     polarity: dom.inputPolarity.value,
                     status: state.currentDraft.status,
