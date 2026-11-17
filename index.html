@@ -412,6 +412,18 @@
                     <input id="inputLocation" type="text" placeholder="e.g. Office 2B, Kitchen, Server Room" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
                 </div>
 
+                <!-- Tested by + instrument serial: remembered on this phone, stamped on every test -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="inputTestedBy" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Tested by</label>
+                        <input id="inputTestedBy" type="text" autocomplete="name" placeholder="Your name" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
+                    </div>
+                    <div>
+                        <label for="inputTesterSerial" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Tester serial no.</label>
+                        <input id="inputTesterSerial" type="text" autocapitalize="characters" placeholder="On the HPAT550 label" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm font-mono">
+                    </div>
+                </div>
+
                 <!-- Readings editor: hidden behind "Edit readings" unless something needs entering -->
                 <div class="bg-slate-950/60 border border-slate-800 rounded-2xl">
                     <button type="button" id="btnEditReadings" aria-expanded="false" aria-controls="readingsEditor" class="w-full px-4 py-3.5 flex items-center justify-between text-sm font-bold text-yellow-400">
@@ -547,6 +559,8 @@
             <div style="text-align: right; font-size: 9.5pt;">
                 <div><strong>Report Date (UK):</strong> <span id="printReportDate"></span></div>
                 <div><strong>Summary:</strong> <span id="printSummaryText"></span></div>
+                <div><strong>Tested by:</strong> <span id="printTestedBy"></span></div>
+                <div><strong>Instrument serial no.:</strong> <span id="printTesterSerial"></span></div>
             </div>
         </div>
         <table class="print-table">
@@ -562,6 +576,7 @@
                     <th>Volt / Pol.</th>
                     <th>Result</th>
                     <th>Date / Time</th>
+                    <th>Tested by</th>
                 </tr>
             </thead>
             <tbody id="printTableBody"></tbody>
@@ -585,6 +600,8 @@
             // Storage Keys
             const STORAGE_KEY_RECORDS = 'pat_snap_550_records_v1';
             const STORAGE_KEY_LOCATION = 'pat_snap_550_last_location_v1';
+            const STORAGE_KEY_TESTED_BY = 'pat_snap_550_tested_by_v1';
+            const STORAGE_KEY_TESTER_SERIAL = 'pat_snap_550_tester_serial_v1';
             const STORAGE_KEY_OPENAI_KEY = 'pat_snap_550_openai_key_v1';
             const STORAGE_KEY_OPENAI_MODEL = 'pat_snap_550_openai_model_v1';
             // gpt-5-mini: 18/18 correct on the example photos, ~40% cheaper per photo than gpt-4.1-mini (now deprecated)
@@ -594,6 +611,8 @@
             const state = {
                 records: [],
                 lastLocation: '',
+                testedBy: '',
+                testerSerial: '',
                 activeFilter: 'ALL',
                 searchQuery: '',
                 ocrInvert: false,
@@ -659,6 +678,10 @@
                 btnAutoIncrementId: document.getElementById('btnAutoIncrementId'),
                 inputAppliance: document.getElementById('inputAppliance'),
                 inputLocation: document.getElementById('inputLocation'),
+                inputTestedBy: document.getElementById('inputTestedBy'),
+                inputTesterSerial: document.getElementById('inputTesterSerial'),
+                printTestedBy: document.getElementById('printTestedBy'),
+                printTesterSerial: document.getElementById('printTesterSerial'),
                 btnToggleRawOcr: document.getElementById('btnToggleRawOcr'),
                 rawOcrPreview: document.getElementById('rawOcrPreview'),
                 inputEarth: document.getElementById('inputEarth'),
@@ -784,6 +807,8 @@
                     if (savedLocation) {
                         state.lastLocation = savedLocation;
                     }
+                    state.testedBy = localStorage.getItem(STORAGE_KEY_TESTED_BY) || '';
+                    state.testerSerial = localStorage.getItem(STORAGE_KEY_TESTER_SERIAL) || '';
                     state.openAiKey = localStorage.getItem(STORAGE_KEY_OPENAI_KEY) || '';
                     state.openAiModel = localStorage.getItem(STORAGE_KEY_OPENAI_MODEL) || '';
                 } catch (err) {
@@ -795,6 +820,8 @@
                 try {
                     localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(state.records));
                     localStorage.setItem(STORAGE_KEY_LOCATION, state.lastLocation);
+                    localStorage.setItem(STORAGE_KEY_TESTED_BY, state.testedBy);
+                    localStorage.setItem(STORAGE_KEY_TESTER_SERIAL, state.testerSerial);
                 } catch (err) {
                     console.warn('Storage quota warning, trimming oldest thumbnails:', err);
                     try {
@@ -2003,6 +2030,8 @@ Rules:
                     dom.inputAssetId.value = generateNextAssetId();
                     dom.inputAppliance.value = parsed.suggestedAppliance || '';
                     dom.inputLocation.value = state.lastLocation || '';
+                    dom.inputTestedBy.value = state.testedBy || '';
+                    dom.inputTesterSerial.value = state.testerSerial || '';
                     dom.inputNotes.value = '';
                 }
 
@@ -2240,9 +2269,21 @@ Rules:
                 const assetId = dom.inputAssetId.value.trim() || generateNextAssetId();
                 const appliance = dom.inputAppliance.value.trim();
                 const location = dom.inputLocation.value.trim();
+                const testedBy = dom.inputTestedBy.value.trim();
+                const testerSerial = dom.inputTesterSerial.value.trim().toUpperCase();
 
                 if (!appliance) {
                     showToast('Please enter the Appliance.', 'error');
+                    return;
+                }
+                if (!testedBy) {
+                    showToast('Enter who did the test (Tested by).', 'error');
+                    dom.inputTestedBy.focus();
+                    return;
+                }
+                if (!testerSerial) {
+                    showToast("Enter the tester's serial number.", 'error');
+                    dom.inputTesterSerial.focus();
                     return;
                 }
                 if (!state.currentDraft.status) {
@@ -2292,7 +2333,9 @@ Rules:
                     voltage: dom.inputVoltage.value || 'N/A',
                     polarity: dom.inputPolarity.value,
                     status: state.currentDraft.status,
-                    notes: dom.inputNotes.value.trim()
+                    notes: dom.inputNotes.value.trim(),
+                    testedBy,
+                    testerSerial
                 };
 
                 // Editing an old result: update it in place (keeps its original date and photo)
@@ -2309,6 +2352,9 @@ Rules:
 
                 // Remember location for rapid batch testing
                 state.lastLocation = location;
+                // Remember who tested and with which instrument, so they're only typed once
+                state.testedBy = testedBy;
+                state.testerSerial = testerSerial;
                 updateBatchLocationUI();
 
                 const now = new Date();
@@ -2347,6 +2393,8 @@ Rules:
                 dom.inputAssetId.value = rec.assetId || '';
                 dom.inputAppliance.value = rec.appliance || '';
                 dom.inputLocation.value = rec.location || '';
+                dom.inputTestedBy.value = rec.testedBy || '';
+                dom.inputTesterSerial.value = rec.testerSerial || '';
                 dom.inputNotes.value = rec.notes || '';
                 dom.inputVoltage.value = voltage;
                 setModalVisualUI(rec.visualCheck || 'PASS');
@@ -2476,6 +2524,8 @@ Rules:
                     'Overall Result',
                     'Date',
                     'Time',
+                    'Tested By',
+                    'Instrument Serial No.',
                     'Notes'
                 ];
 
@@ -2494,6 +2544,8 @@ Rules:
                         r.status,
                         r.formattedDate,
                         r.formattedTime,
+                        r.testedBy || '',
+                        r.testerSerial || '',
                         r.notes || ''
                     ].map(val => `"${String(val).replace(/"/g, '""')}"`);
                     csvRows.push(row.join(','));
@@ -2529,6 +2581,10 @@ Rules:
 
                 dom.printReportDate.textContent = new Date().toLocaleString('en-GB');
                 dom.printSummaryText.textContent = `Total: ${total} | Passed: ${passed} | Failed: ${failed}`;
+                // Older results saved before these fields existed have none: shown as "Not recorded"
+                const distinct = key => [...new Set(state.records.map(r => r[key]).filter(Boolean))].join(', ') || 'Not recorded';
+                dom.printTestedBy.textContent = distinct('testedBy');
+                dom.printTesterSerial.textContent = distinct('testerSerial');
 
                 dom.printTableBody.innerHTML = state.records.map(r => `
                     <tr>
@@ -2542,6 +2598,7 @@ Rules:
                         <td>${escapeHtml(r.voltage)} / ${escapeHtml(r.polarity)}</td>
                         <td style="font-weight:bold; color:${r.status === 'PASS' ? '#047857' : '#b91c1c'};">${escapeHtml(r.status)}</td>
                         <td>${escapeHtml(r.formattedDate)} ${escapeHtml(r.formattedTime)}</td>
+                        <td>${escapeHtml(r.testedBy || '—')}</td>
                     </tr>
                 `).join('');
 
