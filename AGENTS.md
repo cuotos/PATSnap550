@@ -77,7 +77,7 @@ Sanity checks (findSanityIssues / refreshSanityBanner): readings that contradict
 
 Screen finding (findScreenBox): thresholds relative to the whitest pixel, falling back to an Otsu threshold when that finds nothing (a glare spot, or the camera exposing for a screen that fills the frame, made the first method miss). The photo-check prompt shows a small measurements line (#photoCheckDetails) to diagnose wrongly rejected photos.
 
-Tested by + tester serial (#inputTestedBy, #inputTesterSerial on the check screen): required, remembered on the phone (pat_snap_550_tested_by_v1, pat_snap_550_tester_serial_v1) and stamped on each record as testedBy / testerSerial. Shown in the print report header (distinct values), a "Tested by" report column and the CSV.
+Tested by + tester serial: set once in #testerSetupModal (openTesterSetup), which opens the first time Take Picture or Upload is pressed and from the "Testing as … · change" line (#btnTesterInfo) on the Scan tab. Remembered on the phone (pat_snap_550_tested_by_v1, pat_snap_550_tester_serial_v1) and stamped on each record as testedBy / testerSerial. The check screen only shows them (#testerFieldsBlock) when editing an old result. Shown in the print report header (distinct values), a "Tested by" report column and the CSV.
 
 Saving rules: PASS/FAIL must be chosen if not read; voltage must be chosen (250V/500V) if not read, unless insulation is "Not tested". No reading is ever defaulted.
 

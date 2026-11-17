@@ -144,6 +144,9 @@
                 <span>TAKE PICTURE</span>
             </button>
 
+            <!-- Who is testing, with which instrument (set once, stamped on every result) -->
+            <button id="btnTesterInfo" type="button" class="w-full py-3 px-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-sm text-slate-300 text-center"></button>
+
             <!-- Secondary options, collapsed out of the way -->
             <details class="bg-slate-900/60 border border-slate-800 rounded-2xl">
                 <summary class="px-4 py-3.5 text-sm font-semibold text-slate-400 cursor-pointer select-none">More options</summary>
@@ -412,8 +415,8 @@
                     <input id="inputLocation" type="text" placeholder="e.g. Office 2B, Kitchen, Server Room" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
                 </div>
 
-                <!-- Tested by + instrument serial: remembered on this phone, stamped on every test -->
-                <div class="grid grid-cols-2 gap-3">
+                <!-- Tested by + instrument serial: only shown when editing an old result (new scans use the setup) -->
+                <div id="testerFieldsBlock" class="hidden grid grid-cols-2 gap-3">
                     <div>
                         <label for="inputTestedBy" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Tested by</label>
                         <input id="inputTestedBy" type="text" autocomplete="name" placeholder="Your name" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
@@ -514,6 +517,24 @@
 
     <!-- ==================== CUSTOM CONFIRMATION DIALOG MODAL ==================== -->
     <!-- ==================== PHOTO PRE-CHECK PROMPT ==================== -->
+    <!-- One-time setup: who is testing and with which tester -->
+    <div id="testerSetupModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <form id="testerSetupForm" class="bg-slate-900 border border-slate-700 rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3">
+            <h3 class="font-extrabold text-lg text-white">Who's testing, and which tester?</h3>
+            <p class="text-sm text-slate-400">Saved on this phone and added to every result and report.</p>
+            <div>
+                <label for="setupTestedBy" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Your name</label>
+                <input id="setupTestedBy" type="text" autocomplete="name" class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white">
+            </div>
+            <div>
+                <label for="setupTesterSerial" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">HPAT550 serial no. (on its label)</label>
+                <input id="setupTesterSerial" type="text" autocapitalize="characters" class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white font-mono">
+            </div>
+            <button type="submit" class="w-full py-4 rounded-2xl bg-yellow-400 text-slate-950 text-lg font-extrabold">Save</button>
+            <button id="btnTesterSetupCancel" type="button" class="w-full py-3 rounded-2xl bg-slate-800 border border-slate-700 text-slate-200 text-sm font-bold">Cancel</button>
+        </form>
+    </div>
+
     <div id="photoCheckModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3">
             <h3 class="font-extrabold text-lg text-white">This doesn't look like the tester screen</h3>
@@ -679,6 +700,13 @@
                 inputAppliance: document.getElementById('inputAppliance'),
                 inputLocation: document.getElementById('inputLocation'),
                 inputTestedBy: document.getElementById('inputTestedBy'),
+                testerFieldsBlock: document.getElementById('testerFieldsBlock'),
+                btnTesterInfo: document.getElementById('btnTesterInfo'),
+                testerSetupModal: document.getElementById('testerSetupModal'),
+                testerSetupForm: document.getElementById('testerSetupForm'),
+                setupTestedBy: document.getElementById('setupTestedBy'),
+                setupTesterSerial: document.getElementById('setupTesterSerial'),
+                btnTesterSetupCancel: document.getElementById('btnTesterSetupCancel'),
                 inputTesterSerial: document.getElementById('inputTesterSerial'),
                 printTestedBy: document.getElementById('printTestedBy'),
                 printTesterSerial: document.getElementById('printTesterSerial'),
@@ -755,6 +783,7 @@
                 loadFromStorage();
                 updateAssetIdIndicators();
                 updateBatchLocationUI();
+                updateTesterInfoUI();
                 updateAiStatusUI();
                 renderRecordsLog();
                 bindEvents();
@@ -907,6 +936,44 @@
                 };
             }
 
+            function testerIsSet() {
+                return !!(state.testedBy && state.testerSerial);
+            }
+
+            /** "Testing as Dan · HP550-123 · change" line on the Scan tab */
+            function updateTesterInfoUI() {
+                dom.btnTesterInfo.innerHTML = testerIsSet()
+                    ? `Testing as <strong class="text-white">${escapeHtml(state.testedBy)}</strong> · <span class="font-mono">${escapeHtml(state.testerSerial)}</span> · <span class="text-yellow-400 font-bold">change</span>`
+                    : '<span class="text-amber-300 font-bold">Set who\'s testing and the tester\'s serial no.</span>';
+            }
+
+            /** Opens the one-time setup; calls onDone() after Save (not on Cancel) */
+            function openTesterSetup(onDone) {
+                dom.setupTestedBy.value = state.testedBy || '';
+                dom.setupTesterSerial.value = state.testerSerial || '';
+                dom.testerSetupModal.classList.remove('hidden');
+                (state.testedBy ? dom.setupTesterSerial : dom.setupTestedBy).focus();
+                const close = () => {
+                    dom.testerSetupModal.classList.add('hidden');
+                    dom.testerSetupForm.onsubmit = null;
+                    dom.btnTesterSetupCancel.onclick = null;
+                };
+                dom.testerSetupForm.onsubmit = (e) => {
+                    e.preventDefault();
+                    const name = dom.setupTestedBy.value.trim();
+                    const serial = dom.setupTesterSerial.value.trim().toUpperCase();
+                    if (!name) { showToast('Enter your name.', 'error'); dom.setupTestedBy.focus(); return; }
+                    if (!serial) { showToast("Enter the tester's serial number.", 'error'); dom.setupTesterSerial.focus(); return; }
+                    state.testedBy = name;
+                    state.testerSerial = serial;
+                    saveToStorage();
+                    updateTesterInfoUI();
+                    close();
+                    if (typeof onDone === 'function') onDone();
+                };
+                dom.btnTesterSetupCancel.onclick = close;
+            }
+
             function escapeHtml(str) {
                 return String(str ?? '')
                     .replace(/&/g, '&amp;')
@@ -982,6 +1049,10 @@
              * opens the phone's camera app instead.
              */
             async function takePicture() {
+                if (!testerIsSet()) {
+                    openTesterSetup(() => showToast('Saved — now take the picture.', 'success'));
+                    return;
+                }
                 const video = dom.cameraVideo;
                 if (!state.mediaStream || video.readyState < 2 || !video.videoWidth) {
                     dom.filePhotoInput.click();
@@ -2030,8 +2101,7 @@ Rules:
                     dom.inputAssetId.value = generateNextAssetId();
                     dom.inputAppliance.value = parsed.suggestedAppliance || '';
                     dom.inputLocation.value = state.lastLocation || '';
-                    dom.inputTestedBy.value = state.testedBy || '';
-                    dom.inputTesterSerial.value = state.testerSerial || '';
+                    dom.testerFieldsBlock.classList.add('hidden');
                     dom.inputNotes.value = '';
                 }
 
@@ -2269,21 +2339,22 @@ Rules:
                 const assetId = dom.inputAssetId.value.trim() || generateNextAssetId();
                 const appliance = dom.inputAppliance.value.trim();
                 const location = dom.inputLocation.value.trim();
-                const testedBy = dom.inputTestedBy.value.trim();
-                const testerSerial = dom.inputTesterSerial.value.trim().toUpperCase();
+                const editing = !!state.editingRecordId;
+                const testedBy = editing ? dom.inputTestedBy.value.trim() : state.testedBy;
+                const testerSerial = editing ? dom.inputTesterSerial.value.trim().toUpperCase() : state.testerSerial;
 
                 if (!appliance) {
                     showToast('Please enter the Appliance.', 'error');
                     return;
                 }
-                if (!testedBy) {
-                    showToast('Enter who did the test (Tested by).', 'error');
-                    dom.inputTestedBy.focus();
+                if (!editing && !testerIsSet()) {
+                    // e.g. a Demo Scan before setup: ask now, then carry on saving
+                    openTesterSetup(() => handleSaveVerifiedRecord(null, sanityConfirmed));
                     return;
                 }
-                if (!testerSerial) {
-                    showToast("Enter the tester's serial number.", 'error');
-                    dom.inputTesterSerial.focus();
+                if (!testedBy || !testerSerial) {
+                    showToast('Enter Tested by and the tester serial no.', 'error');
+                    (testedBy ? dom.inputTesterSerial : dom.inputTestedBy).focus();
                     return;
                 }
                 if (!state.currentDraft.status) {
@@ -2352,9 +2423,6 @@ Rules:
 
                 // Remember location for rapid batch testing
                 state.lastLocation = location;
-                // Remember who tested and with which instrument, so they're only typed once
-                state.testedBy = testedBy;
-                state.testerSerial = testerSerial;
                 updateBatchLocationUI();
 
                 const now = new Date();
@@ -2395,6 +2463,7 @@ Rules:
                 dom.inputLocation.value = rec.location || '';
                 dom.inputTestedBy.value = rec.testedBy || '';
                 dom.inputTesterSerial.value = rec.testerSerial || '';
+                dom.testerFieldsBlock.classList.remove('hidden');
                 dom.inputNotes.value = rec.notes || '';
                 dom.inputVoltage.value = voltage;
                 setModalVisualUI(rec.visualCheck || 'PASS');
@@ -2646,6 +2715,13 @@ Rules:
 
                 // Camera & Capture Controls
                 dom.btnCaptureFrame.addEventListener('click', takePicture);
+                dom.filePhotoInput.addEventListener('click', (e) => {
+                    if (!testerIsSet()) {
+                        e.preventDefault();
+                        openTesterSetup(() => showToast('Saved — now choose the photo.', 'success'));
+                    }
+                });
+                dom.btnTesterInfo.addEventListener('click', () => openTesterSetup());
                 dom.filePhotoInput.addEventListener('change', (e) => {
                     if (e.target.files && e.target.files[0]) {
                         handleImageFileUpload(e.target.files[0]);
