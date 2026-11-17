@@ -93,7 +93,7 @@
                         <h1 class="font-extrabold text-lg tracking-tight text-white">PAT Snap <span class="text-yellow-400">550</span></h1>
                         <span class="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-yellow-400 border border-slate-700">IET CoP 5th Ed</span>
                     </div>
-                    <p class="text-xs text-slate-400">Martindale HPAT550 Optical Screen Logger (UK)</p>
+                    <p class="text-xs text-slate-400">Martindale HPAT550 Optical Screen Logger (UK)<span id="deployStamp" class="text-slate-600"></span></p>
                 </div>
             </div>
 
@@ -724,6 +724,11 @@
              * 1. INITIALIZATION & LOCAL STORAGE
              * ===================================================================== */
             function init() {
+                // Deploy time: GitHub Pages sends the file's Last-Modified, which the browser exposes here
+                const deployed = new Date(document.lastModified);
+                if (!isNaN(deployed)) {
+                    document.getElementById('deployStamp').textContent = ` · ${deployed.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+                }
                 loadFromStorage();
                 updateAssetIdIndicators();
                 updateBatchLocationUI();
