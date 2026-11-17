@@ -73,6 +73,10 @@ AI reading (readScreenWithOpenAI / mapOpenAiReading): when an OpenAI key is save
 
 Photo pre-check (assessPhoto + photoLooksLikeScreen, in runOcrOnCanvas before any reading): free, on-device. Rejects photos that are too dark (brightness < 30), have no screen-shaped bright area (aspect 0.9–2.2, 4–97% of the frame), no text on the screen (ink < 2%) or are too blurry (sharpness < 50). Shows #photoCheckModal with Retake / Read anyway. Example photos measure brightness 89–108, aspect 1.33–1.51, ink 13–18%, sharpness 890–1400; re-check those ranges if changing the cut-offs. Demo Scan sets canvas.skipPreCheck.
 
+Sanity checks (findSanityIssues / refreshSanityBanner): readings that contradict the result are flagged in a red banner on the check screen and need a "Save anyway?" confirm — PASS with Earth > 0.1 Ω, Insulation < 1 MΩ (2 MΩ Class II) or Polarity Incorrect; FAIL with every reading within limits and Visual PASS. These are usually misreads that a busy engineer would miss.
+
+Screen finding (findScreenBox): thresholds relative to the whitest pixel, falling back to an Otsu threshold when that finds nothing (a glare spot, or the camera exposing for a screen that fills the frame, made the first method miss). The photo-check prompt shows a small measurements line (#photoCheckDetails) to diagnose wrongly rejected photos.
+
 Saving rules: PASS/FAIL must be chosen if not read; voltage must be chosen (250V/500V) if not read, unless insulation is "Not tested". No reading is ever defaulted.
 
 Editing: each Results Log card has Edit (openRecordForEdit), which reuses the check screen with scanner tiles hidden; saving updates the record in place (state.editingRecordId).
