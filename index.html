@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Tesseract.js v5 for Client-Side OCR -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- QR codes on printed labels (each label carries its own full result) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <!-- Google Fonts: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -146,6 +148,18 @@
 
             <!-- Who is testing, with which instrument (set once, stamped on every result) -->
             <button id="btnTesterInfo" type="button" class="w-full py-3 px-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-sm text-slate-300 text-center"></button>
+
+            <!-- Phomemo M120 label printer (Web Bluetooth): connect once per session, then labels print on save -->
+            <div class="flex flex-col gap-2">
+                <button id="btnPrinter" type="button" class="w-full py-3 px-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-sm text-slate-300 text-center"></button>
+                <div class="flex gap-2">
+                    <select id="labelSizeSelect" aria-label="Label size" class="flex-1 py-3 px-3 rounded-2xl bg-slate-900/60 border border-slate-800 text-sm text-slate-300">
+                        <option value="40x30">Labels: 40 × 30 mm</option>
+                        <option value="40x20">Labels: 40 × 20 mm</option>
+                    </select>
+                    <button id="btnTestLabel" type="button" class="hidden py-3 px-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-sm font-bold text-yellow-400">Test label</button>
+                </div>
+            </div>
 
             <!-- Secondary options, collapsed out of the way -->
             <details class="bg-slate-900/60 border border-slate-800 rounded-2xl">
@@ -486,6 +500,12 @@
                     <input id="inputNotes" type="text" placeholder="e.g. Fuse checked (13A), retest due 12 months" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none text-white text-sm">
                 </div>
 
+                <!-- What the label will look like (printed by Save & Print) -->
+                <div class="flex items-center gap-3 bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
+                    <img id="labelPreviewImg" alt="Label preview" class="w-32 rounded border border-slate-600 bg-white">
+                    <p class="text-xs text-slate-400">Label preview — prints with <strong class="text-yellow-400">Save &amp; Print</strong></p>
+                </div>
+
                 <!-- Submit Actions -->
                 <div class="pt-2 flex gap-2.5 sticky bottom-0 bg-slate-900 pb-1">
                     <button type="button" id="btnCancelVerify" class="px-4 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm">
@@ -496,6 +516,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                         </svg>
                         Save &amp; Scan Next
+                    </button>
+                    <button type="button" id="btnSaveAndPrint" class="px-4 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-yellow-400/60 text-yellow-400 font-extrabold text-sm">
+                        🖨 Save &amp; Print
                     </button>
                 </div>
             </form>
@@ -517,6 +540,16 @@
 
     <!-- ==================== CUSTOM CONFIRMATION DIALOG MODAL ==================== -->
     <!-- ==================== PHOTO PRE-CHECK PROMPT ==================== -->
+    <!-- Label preview from the Results Log, with Print -->
+    <div id="labelModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3">
+            <h3 id="labelModalTitle" class="font-extrabold text-lg text-white">Label</h3>
+            <img id="labelModalImg" alt="Label preview" class="w-full rounded-lg border border-slate-600 bg-white">
+            <button id="btnLabelModalPrint" type="button" class="w-full py-4 rounded-2xl bg-yellow-400 text-slate-950 text-lg font-extrabold">🖨 Print</button>
+            <button id="btnLabelModalClose" type="button" class="w-full py-3 rounded-2xl bg-slate-800 border border-slate-700 text-slate-200 text-sm font-bold">Close</button>
+        </div>
+    </div>
+
     <!-- One-time setup: who is testing and with which tester -->
     <div id="testerSetupModal" class="no-print hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
         <form id="testerSetupForm" class="bg-slate-900 border border-slate-700 rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3">
@@ -623,6 +656,7 @@
             const STORAGE_KEY_LOCATION = 'pat_snap_550_last_location_v1';
             const STORAGE_KEY_TESTED_BY = 'pat_snap_550_tested_by_v1';
             const STORAGE_KEY_TESTER_SERIAL = 'pat_snap_550_tester_serial_v1';
+            const STORAGE_KEY_LABEL_SIZE = 'pat_snap_550_label_size_v1';
             const STORAGE_KEY_OPENAI_KEY = 'pat_snap_550_openai_key_v1';
             const STORAGE_KEY_OPENAI_MODEL = 'pat_snap_550_openai_model_v1';
             // gpt-5-mini: 18/18 correct on the example photos, ~40% cheaper per photo than gpt-4.1-mini (now deprecated)
@@ -634,6 +668,12 @@
                 lastLocation: '',
                 testedBy: '',
                 testerSerial: '',
+                printer: null,          // { device, char } while a label printer is connected
+                printerWanted: false,   // connected at some point this session (warn if it drops)
+                printerBusy: false,
+                printAfterSave: false,
+                photoStore: 'local',    // 'idb' once photos live in IndexedDB (see initPhotoStorage)
+                labelSize: '40x30',     // '40x30' or '40x20' (mm)  // set by "Save & Print" for the save in progress
                 activeFilter: 'ALL',
                 searchQuery: '',
                 ocrInvert: false,
@@ -702,6 +742,16 @@
                 inputTestedBy: document.getElementById('inputTestedBy'),
                 testerFieldsBlock: document.getElementById('testerFieldsBlock'),
                 btnTesterInfo: document.getElementById('btnTesterInfo'),
+                btnPrinter: document.getElementById('btnPrinter'),
+                btnTestLabel: document.getElementById('btnTestLabel'),
+                btnSaveAndPrint: document.getElementById('btnSaveAndPrint'),
+                labelSizeSelect: document.getElementById('labelSizeSelect'),
+                labelPreviewImg: document.getElementById('labelPreviewImg'),
+                labelModal: document.getElementById('labelModal'),
+                labelModalTitle: document.getElementById('labelModalTitle'),
+                labelModalImg: document.getElementById('labelModalImg'),
+                btnLabelModalPrint: document.getElementById('btnLabelModalPrint'),
+                btnLabelModalClose: document.getElementById('btnLabelModalClose'),
                 testerSetupModal: document.getElementById('testerSetupModal'),
                 testerSetupForm: document.getElementById('testerSetupForm'),
                 setupTestedBy: document.getElementById('setupTestedBy'),
@@ -784,10 +834,12 @@
                 updateAssetIdIndicators();
                 updateBatchLocationUI();
                 updateTesterInfoUI();
+                updatePrinterUI();
                 updateAiStatusUI();
                 renderRecordsLog();
                 bindEvents();
                 startCamera();
+                initPhotoStorage();
             }
 
             /** Shows whether AI reading is on, on the landing page and in More options */
@@ -838,6 +890,7 @@
                     }
                     state.testedBy = localStorage.getItem(STORAGE_KEY_TESTED_BY) || '';
                     state.testerSerial = localStorage.getItem(STORAGE_KEY_TESTER_SERIAL) || '';
+                    if (localStorage.getItem(STORAGE_KEY_LABEL_SIZE) === '40x20') state.labelSize = '40x20';
                     state.openAiKey = localStorage.getItem(STORAGE_KEY_OPENAI_KEY) || '';
                     state.openAiModel = localStorage.getItem(STORAGE_KEY_OPENAI_MODEL) || '';
                 } catch (err) {
@@ -846,13 +899,23 @@
             }
 
             function saveToStorage() {
+                // Photos live in IndexedDB (much more room); localStorage keeps only the text of each result
+                const recordsToSave = state.photoStore === 'idb'
+                    ? state.records.map(({ photo, ...rest }) => rest)
+                    : state.records;
                 try {
-                    localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(state.records));
+                    localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(recordsToSave));
                     localStorage.setItem(STORAGE_KEY_LOCATION, state.lastLocation);
                     localStorage.setItem(STORAGE_KEY_TESTED_BY, state.testedBy);
                     localStorage.setItem(STORAGE_KEY_TESTER_SERIAL, state.testerSerial);
+                    localStorage.setItem(STORAGE_KEY_LABEL_SIZE, state.labelSize);
                 } catch (err) {
-                    console.warn('Storage quota warning, trimming oldest thumbnails:', err);
+                    console.warn('Storage quota warning:', err);
+                    if (state.photoStore === 'idb') {
+                        showToast('Device storage is full — export CSV to back up records.', 'error');
+                        return;
+                    }
+                    // Fallback when IndexedDB is unavailable: photos are in localStorage, so trim old ones
                     try {
                         for (let i = state.records.length - 1; i >= 5; i--) {
                             if (state.records[i].photo) {
@@ -934,6 +997,347 @@
                     cleanup();
                     if (typeof onConfirm === 'function') onConfirm();
                 };
+            }
+
+            /* =====================================================================
+             * LABEL PRINTER — Phomemo M120 (also M110) over Web Bluetooth
+             * Protocol as used by phomemo-tools / phomymo: service 0xff00, write characteristic 0xff02,
+             * ESC N 0x0D speed, ESC N 0x04 density, 1F 11 0A (gap labels), GS v 0 raster, 1F F0 footer.
+             * Print head is 384 dots (48 mm) wide at 203 dpi; a 40×30 mm label is 320×240 dots.
+             * On Dan's M120 the 40 mm roll sits at the right of the head (centring cut ~40 dots off the
+             * left edge), so LABEL_X places the label right-aligned.
+             * ===================================================================== */
+            const PRINTER = {
+                SERVICE: 0xff00, WRITE_CHAR: 0xff02,
+                HEAD_DOTS: 384, LABEL_W: 320, LABEL_X: 64,
+                LABEL_H: { '40x30': 240, '40x20': 160 },
+                CHUNK: 128, CHUNK_DELAY_MS: 20, DENSITY: 10, SPEED: 5
+            };
+            const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+            function updatePrinterUI() {
+                const supported = !!navigator.bluetooth;
+                if (!supported) {
+                    dom.btnPrinter.innerHTML = '<span class="text-slate-500">Label printing needs Chrome on Android, Mac or PC</span>';
+                    dom.btnPrinter.disabled = true;
+                } else if (state.printer) {
+                    dom.btnPrinter.innerHTML = `🖨 <strong class="text-emerald-400">${escapeHtml(state.printer.device.name || 'Printer')}</strong> connected · <span class="text-slate-400">disconnect</span>`;
+                } else {
+                    dom.btnPrinter.innerHTML = '🖨 <span class="text-yellow-400 font-bold">Connect label printer</span>';
+                }
+                dom.btnTestLabel.classList.toggle('hidden', !state.printer);
+            }
+
+            async function connectPrinter() {
+                try {
+                    const device = await navigator.bluetooth.requestDevice({
+                        filters: [{ namePrefix: 'M1' }, { namePrefix: 'M2' }, { namePrefix: 'Q' }, { services: [PRINTER.SERVICE] }],
+                        optionalServices: [PRINTER.SERVICE]
+                    });
+                    const server = await device.gatt.connect();
+                    await sleep(100);
+                    const service = await server.getPrimaryService(PRINTER.SERVICE);
+                    const char = await service.getCharacteristic(PRINTER.WRITE_CHAR);
+                    device.addEventListener('gattserverdisconnected', () => {
+                        state.printer = null;
+                        updatePrinterUI();
+                    });
+                    state.printer = { device, char };
+                    state.printerWanted = true;
+                    updatePrinterUI();
+                    showToast(`Connected to ${device.name || 'printer'}.`, 'success');
+                } catch (err) {
+                    if (err && err.name === 'NotFoundError') return; // picker cancelled
+                    console.warn('Printer connect failed:', err);
+                    showToast(`Couldn't connect to the printer (${err.message}).`, 'error');
+                }
+            }
+
+            function disconnectPrinter() {
+                state.printerWanted = false;
+                try { state.printer?.device.gatt.disconnect(); } catch (e) { /* already gone */ }
+                state.printer = null;
+                updatePrinterUI();
+            }
+
+            async function printerWrite(bytes) {
+                const c = state.printer.char;
+                if (c.properties.writeWithoutResponse) await c.writeValueWithoutResponse(bytes);
+                else await c.writeValue(bytes);
+            }
+
+            /**
+             * Plain-text copy of the whole result for the label's QR code, so any phone camera can read
+             * the result straight off the appliance even if the log is lost.
+             */
+            function labelQrText(rec) {
+                const lines = [
+                    `PAT ${rec.status || ''} ${rec.assetId || ''}`,
+                    rec.appliance ? String(rec.appliance).slice(0, 24) : '',
+                    `Tested ${rec.formattedDate || ''} ${rec.formattedTime || ''}`.trim(),
+                    rec.testType ? `${rec.testType}, visual ${rec.visualCheck || '?'}` : '',
+                    rec.earth && rec.earth !== 'N/A' ? `Earth ${rec.earth}` : '',
+                    rec.insulation ? `Insulation ${rec.insulation}${rec.voltage && rec.voltage !== 'N/A' ? ' @' + rec.voltage : ''}` : '',
+                    rec.testType === 'Lead' && rec.polarity ? `Polarity ${rec.polarity}` : '',
+                    rec.testedBy ? `By ${rec.testedBy}` : '',
+                    rec.testerSerial ? `HPAT550 ${rec.testerSerial}` : ''
+                ];
+                return lines.filter(Boolean).join('\n');
+            }
+
+            /** Draws the record's QR code with its top-left at (qx, qy), sized to fit `box` dots. Returns its size (0 if none). */
+            function drawLabelQr(x, rec, qx, qy, box) {
+                if (typeof window.qrcode !== 'function') return 0; // library didn't load (offline): text-only label
+                try {
+                    window.qrcode.stringToBytes = window.qrcode.stringToBytesFuncs['UTF-8'];
+                    const qr = window.qrcode(0, 'L');
+                    qr.addData(labelQrText(rec), 'Byte');
+                    qr.make();
+                    const n = qr.getModuleCount();
+                    const m = Math.max(1, Math.floor(box / n)); // whole dots per module keeps it crisp
+                    for (let r = 0; r < n; r++) {
+                        for (let col = 0; col < n; col++) {
+                            if (qr.isDark(r, col)) x.fillRect(qx + col * m, qy + r * m, m, m);
+                        }
+                    }
+                    return n * m;
+                } catch (err) {
+                    console.warn('QR code skipped:', err);
+                    return 0;
+                }
+            }
+
+            /** Size in dots the QR code will take in a `box`-dot square (0 if it can't be drawn) */
+            function qrSizeFor(rec, box) {
+                return drawLabelQr(document.createElement('canvas').getContext('2d'), rec, 0, 0, box);
+            }
+
+            /**
+             * Draws the PAT label, black on white, 320 dots wide.
+             * 40×30 mm (240 dots tall): result bar across the top, text left, QR right.
+             * 40×20 mm (160 dots tall): QR down the right, result bar + text on the left.
+             */
+            function drawLabel(rec, size = state.labelSize) {
+                const W = PRINTER.LABEL_W, H = PRINTER.LABEL_H[size] || PRINTER.LABEL_H['40x30'];
+                const c = document.createElement('canvas');
+                c.width = W; c.height = H;
+                const x = c.getContext('2d');
+                x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+                x.fillStyle = '#000'; x.textBaseline = 'top';
+                const fit = (text, maxW, px, weight = 'bold') => {
+                    let s = px;
+                    do { x.font = `${weight} ${s}px Arial, Helvetica, sans-serif`; s -= 2; } while (x.measureText(text).width > maxW && s > 10);
+                };
+                const pad = 12;
+                const word = rec.status === 'PASS' ? 'PASS' : rec.status === 'FAIL' ? 'FAIL' : '?';
+                const bar = (bx, by, bw, bh, px) => {
+                    x.fillStyle = '#000';
+                    x.fillRect(bx, by, bw, bh);
+                    x.fillStyle = '#fff';
+                    x.textAlign = 'center';
+                    fit(word, bw - 12, px);
+                    x.fillText(word, bx + bw / 2, by + Math.round((bh - px) / 2) + 1);
+                    x.fillStyle = '#000';
+                    x.textAlign = 'left';
+                };
+
+                if (H >= 240) {
+                    bar(pad, pad, W - 2 * pad, 56, 46);
+                    const box = H - 80 - pad;
+                    const size = qrSizeFor(rec, box); // right-aligned, centred in the space below the bar
+                    const qx = W - pad - size;
+                    if (size) drawLabelQr(x, rec, qx, 80 + Math.floor((box - size) / 2), box);
+                    const textW = (size ? qx - 10 : W - pad) - pad;
+                    fit(rec.assetId || '', textW, 44); x.fillText(rec.assetId || '', pad, 86);
+                    fit(rec.formattedDate || '', textW, 26); x.fillText(rec.formattedDate || '', pad, 150);
+                    fit(rec.testedBy || '', textW, 24); x.fillText(rec.testedBy || '', pad, 188);
+                } else {
+                    const box = H - 2 * pad;
+                    const size = qrSizeFor(rec, box);
+                    const qx = W - pad - size;
+                    if (size) drawLabelQr(x, rec, qx, pad + Math.floor((box - size) / 2), box);
+                    const textW = (size ? qx - 10 : W - pad) - pad;
+                    bar(pad, pad, textW, 40, 30);
+                    fit(rec.assetId || '', textW, 34); x.fillText(rec.assetId || '', pad, 60);
+                    fit(rec.formattedDate || '', textW, 20); x.fillText(rec.formattedDate || '', pad, 102);
+                    fit(rec.testedBy || '', textW, 20); x.fillText(rec.testedBy || '', pad, 126);
+                }
+                return c;
+            }
+
+            /** Label canvas → 1-bit raster rows the width of the print head, label centred */
+            function labelToRaster(label) {
+                const widthBytes = PRINTER.HEAD_DOTS / 8;
+                const H = label.height;
+                const offset = PRINTER.LABEL_X;
+                const d = label.getContext('2d').getImageData(0, 0, label.width, H).data;
+                const out = new Uint8Array(widthBytes * H);
+                for (let y = 0; y < H; y++) {
+                    for (let lx = 0; lx < label.width; lx++) {
+                        const i = (y * label.width + lx) * 4;
+                        if ((d[i] + d[i + 1] + d[i + 2]) / 3 < 128) {
+                            const px = lx + offset;
+                            out[y * widthBytes + (px >> 3)] |= 0x80 >> (px & 7);
+                        }
+                    }
+                }
+                return { data: out, widthBytes, height: H };
+            }
+
+            async function printRecordLabel(rec) {
+                if (!state.printer) {
+                    showToast('Connect the label printer first (Scan tab).', 'error');
+                    return;
+                }
+                if (state.printerBusy) return;
+                state.printerBusy = true;
+                try {
+                    const { data, widthBytes, height } = labelToRaster(drawLabel(rec));
+                    await printerWrite(new Uint8Array([0x1b, 0x4e, 0x0d, PRINTER.SPEED]));   // speed
+                    await sleep(30);
+                    await printerWrite(new Uint8Array([0x1b, 0x4e, 0x04, PRINTER.DENSITY])); // density
+                    await sleep(30);
+                    await printerWrite(new Uint8Array([0x1f, 0x11, 0x0a]));                  // labels with gaps
+                    await sleep(30);
+                    await printerWrite(new Uint8Array([0x1d, 0x76, 0x30, 0x00, widthBytes, 0x00, height & 0xff, (height >> 8) & 0xff]));
+                    for (let i = 0; i < data.length; i += PRINTER.CHUNK) {
+                        await printerWrite(data.slice(i, i + PRINTER.CHUNK));
+                        await sleep(PRINTER.CHUNK_DELAY_MS);
+                    }
+                    await sleep(300);
+                    await printerWrite(new Uint8Array([0x1f, 0xf0, 0x05, 0x00, 0x1f, 0xf0, 0x03, 0x00])); // finish
+                    showToast(`Label printed for ${rec.assetId}.`, 'success');
+                } catch (err) {
+                    console.warn('Label print failed:', err);
+                    showToast(`Label didn't print (${err.message}).`, 'error');
+                } finally {
+                    state.printerBusy = false;
+                }
+            }
+
+            // Lets the label layout be checked without a printer (window.PAT_LABEL_PREVIEW(record, size) → data URL)
+            window.PAT_LABEL_PREVIEW = (rec, size) => drawLabel(rec, size).toDataURL('image/png');
+
+            /** The result as currently shown on the check screen, shaped like a saved record (for the label preview) */
+            function draftRecordFromForm() {
+                const editing = state.editingRecordId ? state.records.find(r => r.id === state.editingRecordId) : null;
+                const now = new Date();
+                return {
+                    assetId: dom.inputAssetId.value.trim() || generateNextAssetId(),
+                    appliance: dom.inputAppliance.value.trim(),
+                    status: state.currentDraft.status,
+                    formattedDate: editing ? editing.formattedDate : now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    formattedTime: editing ? editing.formattedTime : now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+                    testType: state.currentDraft.testType,
+                    visualCheck: state.currentDraft.visualCheck,
+                    earth: dom.inputEarth.value.trim() || 'N/A',
+                    insulation: dom.inputInsulation.value.trim(),
+                    voltage: dom.inputVoltage.value || 'N/A',
+                    polarity: dom.inputPolarity.value,
+                    testedBy: editing ? dom.inputTestedBy.value.trim() : state.testedBy,
+                    testerSerial: editing ? dom.inputTesterSerial.value.trim().toUpperCase() : state.testerSerial
+                };
+            }
+
+            function updateLabelPreview() {
+                if (dom.verifyModal.classList.contains('hidden')) return;
+                dom.labelPreviewImg.src = drawLabel(draftRecordFromForm()).toDataURL('image/png');
+            }
+
+            /** Results Log "Label": show the label, print from there */
+            function openLabelModal(rec) {
+                dom.labelModalTitle.textContent = `Label — ${rec.assetId}`;
+                dom.labelModalImg.src = drawLabel(rec).toDataURL('image/png');
+                dom.labelModal.classList.remove('hidden');
+                dom.btnLabelModalPrint.onclick = async () => {
+                    if (!state.printer) {
+                        await connectPrinter(); // straight from the tap, so Chrome allows the picker
+                        if (!state.printer) return;
+                    }
+                    dom.labelModal.classList.add('hidden');
+                    printRecordLabel(rec);
+                };
+                dom.btnLabelModalClose.onclick = () => dom.labelModal.classList.add('hidden');
+            }
+
+            /* =====================================================================
+             * PHOTO STORAGE — IndexedDB (hundreds of MB) instead of localStorage (~5 MB).
+             * Store 'photos' maps record id → photo data URL. Falls back to the old localStorage
+             * behaviour (with trimming) if IndexedDB can't be opened.
+             * ===================================================================== */
+            const PHOTO_DB = 'pat_snap_550_photos_v1';
+            const PHOTO_STORE = 'photos';
+            let photoDbPromise = null;
+
+            function openPhotoDb() {
+                if (!('indexedDB' in window)) return Promise.resolve(null);
+                if (!photoDbPromise) {
+                    photoDbPromise = new Promise(resolve => {
+                        try {
+                            const req = indexedDB.open(PHOTO_DB, 1);
+                            req.onupgradeneeded = () => req.result.createObjectStore(PHOTO_STORE);
+                            req.onsuccess = () => resolve(req.result);
+                            req.onerror = () => resolve(null);
+                            req.onblocked = () => resolve(null);
+                        } catch (err) {
+                            resolve(null);
+                        }
+                    });
+                }
+                return photoDbPromise;
+            }
+
+            /** Runs fn(store) in one transaction; resolves with the last request's result when it commits */
+            async function photoTx(mode, fn) {
+                const db = await openPhotoDb();
+                if (!db) throw new Error('Photo storage unavailable');
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(PHOTO_STORE, mode);
+                    const reqs = fn(tx.objectStore(PHOTO_STORE));
+                    tx.oncomplete = () => resolve(Array.isArray(reqs) ? reqs.map(r => r.result) : reqs && reqs.result);
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error);
+                });
+            }
+
+            const savePhoto = (id, dataUrl) => photoTx('readwrite', st => st.put(dataUrl, id));
+            const deletePhoto = id => photoTx('readwrite', st => st.delete(id));
+            const clearPhotos = () => photoTx('readwrite', st => st.clear());
+
+            /** Moves any photos still in localStorage into IndexedDB, then loads every photo into memory */
+            async function initPhotoStorage() {
+                const db = await openPhotoDb();
+                if (!db) return; // stay on localStorage
+                try {
+                    const legacy = state.records.filter(r => r.photo);
+                    for (const r of legacy) await savePhoto(r.id, r.photo);
+
+                    const [keys, values] = await photoTx('readonly', st => [st.getAllKeys(), st.getAll()]);
+                    const byId = new Map(keys.map((k, i) => [k, values[i]]));
+                    state.records.forEach(r => { if (!r.photo && byId.has(r.id)) r.photo = byId.get(r.id); });
+
+                    // Only now is every photo safely in IndexedDB: switch over and slim localStorage down
+                    state.photoStore = 'idb';
+                    if (legacy.length) saveToStorage();
+                    renderRecordsLog();
+
+                    // Ask the browser not to clear this site's storage when the phone runs low
+                    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+                    checkStorageSpace();
+                } catch (err) {
+                    console.warn('Photo storage setup failed, staying on localStorage:', err);
+                }
+            }
+
+            /** Warns well before the browser's storage allowance runs out */
+            async function checkStorageSpace() {
+                if (!navigator.storage || !navigator.storage.estimate) return;
+                try {
+                    const { usage, quota } = await navigator.storage.estimate();
+                    if (quota && usage / quota > 0.8) {
+                        showToast(`Photo storage is ${Math.round(usage / quota * 100)}% full — export the log and clear old results.`, 'error');
+                    }
+                } catch (err) { /* estimate not available */ }
             }
 
             function testerIsSet() {
@@ -2138,6 +2542,7 @@ Rules:
                     state.verifyHistoryPushed = true;
                 }
                 dom.verifyModal.classList.remove('hidden');
+                updateLabelPreview();
                 syncCamera();
                 // Scroll to the top so the photo and readings are seen first (no auto-focus: keyboard would hide them)
                 dom.verifyForm.scrollTop = 0;
@@ -2233,6 +2638,7 @@ Rules:
                 const issues = findSanityIssues();
                 dom.sanityList.innerHTML = issues.map(i => `<li>${escapeHtml(i)}</li>`).join('');
                 dom.sanityBanner.classList.toggle('hidden', issues.length === 0);
+                updateLabelPreview();
                 return issues;
             }
 
@@ -2267,6 +2673,7 @@ Rules:
             }
 
             function closeVerificationModal() {
+                state.printAfterSave = false;
                 dom.verifyModal.classList.add('hidden');
                 state.editingRecordId = null;
                 syncCamera();
@@ -2414,6 +2821,8 @@ Rules:
                     const idx = state.records.findIndex(r => r.id === state.editingRecordId);
                     if (idx >= 0) state.records[idx] = { ...state.records[idx], ...fields };
                     saveToStorage();
+                    if (state.printAfterSave && idx >= 0) printRecordLabel(state.records[idx]);
+                    state.printAfterSave = false;
                     updateAssetIdIndicators();
                     renderRecordsLog();
                     closeVerificationModal();
@@ -2437,6 +2846,14 @@ Rules:
 
                 state.records.unshift(record);
                 saveToStorage();
+                if (state.photoStore === 'idb' && record.photo) {
+                    savePhoto(record.id, record.photo).then(checkStorageSpace).catch(err => {
+                        console.warn('Photo save failed:', err);
+                        showToast('Result saved, but its photo could not be stored (storage full?).', 'error');
+                    });
+                }
+                if (state.printAfterSave) printRecordLabel(record);
+                state.printAfterSave = false;
                 updateAssetIdIndicators();
                 renderRecordsLog();
                 closeVerificationModal();
@@ -2563,6 +2980,7 @@ Rules:
                                 <div class="flex items-center gap-2">
                                     ${rec.photo ? `<button type="button" data-action="view-photo" data-id="${rec.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-yellow-400 font-semibold transition">View LCD Photo</button>` : ''}
                                     <button type="button" data-action="edit-rec" data-id="${rec.id}" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">Edit</button>
+                                    <button type="button" data-action="print-label" data-id="${rec.id}" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">Label</button>
                                     <button type="button" data-action="delete-rec" data-id="${rec.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800/70 hover:bg-red-950/70 text-slate-400 hover:text-red-400 font-semibold transition">Delete</button>
                                 </div>
                             </div>
@@ -2700,6 +3118,7 @@ Rules:
                     if (state.verifyHistoryPushed && !dom.verifyModal.classList.contains('hidden')) {
                         state.verifyHistoryPushed = false;
                         dom.verifyModal.classList.add('hidden');
+                        state.printAfterSave = false;
                         showToast(state.editingRecordId ? 'Changes discarded.' : 'Scan discarded.', 'info');
                         state.editingRecordId = null;
                         syncCamera();
@@ -2722,6 +3141,17 @@ Rules:
                     }
                 });
                 dom.btnTesterInfo.addEventListener('click', () => openTesterSetup());
+                dom.btnPrinter.addEventListener('click', () => state.printer ? disconnectPrinter() : connectPrinter());
+                dom.labelSizeSelect.value = state.labelSize;
+                dom.labelSizeSelect.addEventListener('change', () => {
+                    state.labelSize = dom.labelSizeSelect.value === '40x20' ? '40x20' : '40x30';
+                    saveToStorage();
+                    showToast(`Labels set to ${state.labelSize.replace('x', ' × ')} mm.`, 'info');
+                });
+                dom.btnTestLabel.addEventListener('click', () => printRecordLabel({
+                    assetId: 'PAT-TEST', status: 'PASS', formattedDate: new Date().toLocaleDateString('en-GB'),
+                    testedBy: state.testedBy || 'Test', testerSerial: state.testerSerial || ''
+                }));
                 dom.filePhotoInput.addEventListener('change', (e) => {
                     if (e.target.files && e.target.files[0]) {
                         handleImageFileUpload(e.target.files[0]);
@@ -2795,7 +3225,20 @@ Rules:
                 });
 
                 // Save Verified Record
-                dom.verifyForm.addEventListener('submit', (e) => handleSaveVerifiedRecord(e));
+                dom.verifyForm.addEventListener('submit', (e) => {
+                    // A plain Save (button or Enter key) never prints
+                    if (!e.submitter || e.submitter.id !== 'btnSaveAndPrint') state.printAfterSave = false;
+                    handleSaveVerifiedRecord(e);
+                });
+                dom.btnSaveAndPrint.addEventListener('click', async () => {
+                    // Connect first if needed: Chrome only shows the Bluetooth picker straight from a tap
+                    if (!state.printer) {
+                        await connectPrinter();
+                        if (!state.printer) return; // picker cancelled / failed: nothing saved
+                    }
+                    state.printAfterSave = true;
+                    handleSaveVerifiedRecord(null);
+                });
                 dom.verifyForm.addEventListener('input', refreshSanityBanner);
                 dom.verifyForm.addEventListener('change', refreshSanityBanner);
 
@@ -2828,6 +3271,8 @@ Rules:
 
                     if (btn.dataset.action === 'edit-rec') {
                         openRecordForEdit(record);
+                    } else if (btn.dataset.action === 'print-label') {
+                        openLabelModal(record);
                     } else if (btn.dataset.action === 'view-photo') {
                         dom.photoPreviewTitle.textContent = `${record.assetId} — ${record.appliance}`;
                         dom.photoPreviewImg.src = record.photo;
@@ -2839,6 +3284,7 @@ Rules:
                             () => {
                                 state.records = state.records.filter(r => r.id !== id);
                                 saveToStorage();
+                                if (state.photoStore === 'idb') deletePhoto(id).catch(err => console.warn('Photo delete failed:', err));
                                 updateAssetIdIndicators();
                                 renderRecordsLog();
                                 showToast(`Deleted ${record.assetId}.`, 'info');
@@ -2865,6 +3311,7 @@ Rules:
                         () => {
                             state.records = [];
                             saveToStorage();
+                            if (state.photoStore === 'idb') clearPhotos().catch(err => console.warn('Photo clear failed:', err));
                             updateAssetIdIndicators();
                             renderRecordsLog();
                             showToast('All PAT records cleared.', 'info');
