@@ -202,6 +202,8 @@
                     <button id="btnSaveAiSettings" type="button" class="flex-1 py-3 rounded-xl bg-yellow-400 text-slate-950 text-sm font-extrabold">Save</button>
                     <button id="btnClearAiSettings" type="button" class="px-4 py-3 rounded-xl bg-slate-800 text-red-400 border border-slate-700 text-sm font-bold">Remove key</button>
                 </div>
+                <button id="btnToggleDebug" type="button" class="py-3 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-sm font-bold">Debug info: OFF</button>
+                <p class="text-[11px] text-slate-500">Debug shows how each photo was read (reader, time, image sent, cost, raw answer) on the check screen. With AI on, it also asks the AI how sure it is of each reading — its own guess, slightly slower.</p>
                 <p class="text-[11px] text-slate-500">The key is stored only on this phone. Each photo is sent to OpenAI to be read (small cost per scan). With no key or no signal, the offline reader is used.</p>
             </div>
 
@@ -405,6 +407,23 @@
                         </div>
                         <button type="button" id="btnToggleRawOcr" class="self-start text-[11px] text-slate-400 underline hover:text-white">View Raw OCR</button>
                         <pre id="rawOcrPreview" class="hidden text-[11px] font-mono bg-slate-900 text-slate-300 p-2.5 rounded-xl border border-slate-800 overflow-x-auto whitespace-pre-wrap"></pre>
+                    </div>
+                </details>
+
+                <!-- Debug info for the latest read (only when Debug is on in More options) -->
+                <details id="debugPanel" class="hidden bg-slate-950/60 border border-sky-800 rounded-2xl" open>
+                    <summary class="px-3.5 py-3 text-sm font-semibold text-sky-300 cursor-pointer select-none">Debug: how this was read</summary>
+                    <div class="px-3.5 pb-3.5 flex flex-col gap-3">
+                        <div id="debugConfidence" class="flex flex-col gap-1"></div>
+                        <dl id="debugInfo" class="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs"></dl>
+                        <div id="debugImageWrap" class="hidden">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Image sent to the AI</span>
+                            <img id="debugImage" src="" alt="Image sent to the AI" class="mt-1 w-full max-w-[320px] h-auto rounded-xl border border-slate-700">
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Raw answer</span>
+                            <pre id="debugRaw" class="mt-1 text-[11px] font-mono bg-slate-900 text-slate-300 p-2.5 rounded-xl border border-slate-800 overflow-x-auto whitespace-pre-wrap max-h-64"></pre>
+                        </div>
                     </div>
                 </details>
 
@@ -659,6 +678,7 @@
             const STORAGE_KEY_LABEL_SIZE = 'pat_snap_550_label_size_v1';
             const STORAGE_KEY_OPENAI_KEY = 'pat_snap_550_openai_key_v1';
             const STORAGE_KEY_OPENAI_MODEL = 'pat_snap_550_openai_model_v1';
+            const STORAGE_KEY_DEBUG = 'pat_snap_550_debug_v1';
             // gpt-5-mini: 18/18 correct on the example photos, ~40% cheaper per photo than gpt-4.1-mini (now deprecated)
             const DEFAULT_OPENAI_MODEL = 'gpt-5-mini';
 
@@ -683,6 +703,8 @@
                 cameraStarting: false,
                 openAiKey: '',
                 openAiModel: '',
+                debug: false,           // show the debug panel (and ask the AI for confidence)
+                lastDebug: null,        // details of the latest read, shown in the debug panel
                 editingRecordId: null,
                 currentDraft: {
                     sourceCanvas: null,
@@ -811,6 +833,13 @@
                 inputOpenAiModel: document.getElementById('inputOpenAiModel'),
                 btnSaveAiSettings: document.getElementById('btnSaveAiSettings'),
                 btnClearAiSettings: document.getElementById('btnClearAiSettings'),
+                btnToggleDebug: document.getElementById('btnToggleDebug'),
+                debugPanel: document.getElementById('debugPanel'),
+                debugConfidence: document.getElementById('debugConfidence'),
+                debugInfo: document.getElementById('debugInfo'),
+                debugImageWrap: document.getElementById('debugImageWrap'),
+                debugImage: document.getElementById('debugImage'),
+                debugRaw: document.getElementById('debugRaw'),
                 verifyModalTitle: document.getElementById('verifyModalTitle'),
                 readSummarySection: document.getElementById('readSummarySection'),
                 rereadSection: document.getElementById('rereadSection')
@@ -853,6 +882,17 @@
                 dom.inputOpenAiKey.value = '';
                 dom.inputOpenAiKey.placeholder = on ? 'Key saved (enter a new one to replace)' : 'sk-...';
                 dom.inputOpenAiModel.value = state.openAiModel;
+                dom.btnToggleDebug.textContent = `Debug info: ${state.debug ? 'ON' : 'OFF'}`;
+                dom.btnToggleDebug.className = state.debug
+                    ? 'py-3 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/60 text-sm font-bold'
+                    : 'py-3 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-sm font-bold';
+            }
+
+            function toggleDebug() {
+                state.debug = !state.debug;
+                try { localStorage.setItem(STORAGE_KEY_DEBUG, state.debug ? '1' : '0'); } catch (e) { /* session only */ }
+                updateAiStatusUI();
+                showToast(state.debug ? 'Debug info on — shown on the check screen.' : 'Debug info off.', 'info');
             }
 
             function saveAiSettings() {
@@ -893,6 +933,7 @@
                     if (localStorage.getItem(STORAGE_KEY_LABEL_SIZE) === '40x20') state.labelSize = '40x20';
                     state.openAiKey = localStorage.getItem(STORAGE_KEY_OPENAI_KEY) || '';
                     state.openAiModel = localStorage.getItem(STORAGE_KEY_OPENAI_MODEL) || '';
+                    state.debug = localStorage.getItem(STORAGE_KEY_DEBUG) === '1';
                 } catch (err) {
                     console.warn('Could not read from localStorage:', err);
                 }
@@ -1705,6 +1746,29 @@ Rules:
                 required: ['screen_found', 'test_type', 'interim', 'result', 'voltage', 'earth_status', 'earth_value', 'insulation_status', 'insulation_value', 'polarity']
             };
 
+            // Debug only: the AI's own rating of how sure it is (not a measured confidence)
+            const OPENAI_CONFIDENCE_PROMPT = `
+
+Also rate how sure you are of each item: "high" (clearly readable), "medium" (readable but something is off, e.g. glare, blur, angle) or "low" (partly guessing). In notes, say briefly what was unclear, or leave it empty.`;
+            const CONF_LEVEL = { type: 'string', enum: ['high', 'medium', 'low'] };
+            const OPENAI_DEBUG_SCHEMA = {
+                ...OPENAI_READING_SCHEMA,
+                properties: {
+                    ...OPENAI_READING_SCHEMA.properties,
+                    confidence: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: { result: CONF_LEVEL, test_type: CONF_LEVEL, voltage: CONF_LEVEL, earth: CONF_LEVEL, insulation: CONF_LEVEL, polarity: CONF_LEVEL },
+                        required: ['result', 'test_type', 'voltage', 'earth', 'insulation', 'polarity']
+                    },
+                    notes: { type: 'string', description: 'What was hard to read, if anything' }
+                },
+                required: [...OPENAI_READING_SCHEMA.required, 'confidence', 'notes']
+            };
+
+            // Approx. US$ per million tokens [input, output], for the debug cost estimate
+            const OPENAI_PRICES = { 'gpt-5-mini': [0.25, 2], 'gpt-5-nano': [0.05, 0.4], 'gpt-5': [1.25, 10], 'gpt-4.1-mini': [0.4, 1.6], 'gpt-4o-mini': [0.15, 0.6] };
+
             function reasoningEffortFor(model) {
                 if (/^gpt-5(-mini|-nano)?$/.test(model)) return { reasoning_effort: 'minimal' };
                 if (/^gpt-5\.\d/.test(model)) return { reasoning_effort: 'none' };
@@ -1740,8 +1804,13 @@ Rules:
             async function readScreenWithOpenAI(canvas) {
                 const model = state.openAiModel || DEFAULT_OPENAI_MODEL;
                 const t0 = performance.now();
-                const imageUrl = aiImageFor(canvas).toDataURL('image/jpeg', 0.85);
-                console.info(`AI image ${Math.round(imageUrl.length * 0.75 / 1024)} KB`);
+                const aiImage = aiImageFor(canvas);
+                const imageUrl = aiImage.toDataURL('image/jpeg', 0.85);
+                const imageKb = Math.round(imageUrl.length * 0.75 / 1024);
+                console.info(`AI image ${imageKb} KB`);
+                const withConfidence = state.debug;
+                const schema = withConfidence ? OPENAI_DEBUG_SCHEMA : OPENAI_READING_SCHEMA;
+                const prompt = withConfidence ? OPENAI_READING_PROMPT + OPENAI_CONFIDENCE_PROMPT : OPENAI_READING_PROMPT;
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), 45000);
                 let res;
@@ -1756,7 +1825,7 @@ Rules:
                         body: JSON.stringify({
                             model,
                             messages: [
-                                { role: 'system', content: OPENAI_READING_PROMPT },
+                                { role: 'system', content: prompt },
                                 {
                                     role: 'user',
                                     content: [
@@ -1767,7 +1836,7 @@ Rules:
                             ],
                             response_format: {
                                 type: 'json_schema',
-                                json_schema: { name: 'hpat550_reading', strict: true, schema: OPENAI_READING_SCHEMA }
+                                json_schema: { name: 'hpat550_reading', strict: true, schema }
                             },
                             // Reading a screen needs no deep reasoning; keeps GPT-5 models fast and cheap
                             ...reasoningEffortFor(model)
@@ -1786,8 +1855,16 @@ Rules:
                 }
                 const content = body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content;
                 const ai = JSON.parse(content || '{}');
-                console.info(`AI read took ${Math.round(performance.now() - t0)} ms`);
-                return { parsed: mapOpenAiReading(ai), raw: JSON.stringify(ai, null, 2) };
+                const ms = Math.round(performance.now() - t0);
+                console.info(`AI read took ${ms} ms`);
+                const debug = {
+                    reader: 'AI', model, ms, imageKb, imageUrl,
+                    imageSize: `${aiImage.width}×${aiImage.height}px`,
+                    usage: body.usage || null,
+                    confidence: ai.confidence || null,
+                    notes: ai.notes || ''
+                };
+                return { parsed: mapOpenAiReading(ai), raw: JSON.stringify(ai, null, 2), debug };
             }
 
             /** Converts the AI's answer into the app's reading format, with honest `found` flags */
@@ -1855,12 +1932,15 @@ Rules:
                 }
 
                 // Prefer AI reading when an OpenAI key is set; fall back to offline OCR on any failure
+                state.lastDebug = null;
+                let aiFailReason = '';
                 if (state.openAiKey) {
                     dom.ocrLoadingOverlay.classList.remove('hidden');
                     dom.ocrProgressText.textContent = 'Reading screen with AI...';
                     dom.ocrProgressBar.style.width = '50%';
                     try {
-                        const { parsed, raw } = await readScreenWithOpenAI(canvas);
+                        const { parsed, raw, debug } = await readScreenWithOpenAI(canvas);
+                        state.lastDebug = debug;
                         parsed.suggestedAppliance = suggestedAppliance;
                         dom.ocrProgressBar.style.width = '100%';
                         dom.ocrLoadingOverlay.classList.add('hidden');
@@ -1868,6 +1948,7 @@ Rules:
                         return;
                     } catch (err) {
                         console.warn('AI read failed:', err);
+                        aiFailReason = err.message;
                         showToast(`AI read failed (${err.message}) — using offline reader.`, 'error');
                     }
                 }
@@ -1885,6 +1966,13 @@ Rules:
                     canvas = small;
                 }
 
+                const offlineStart = performance.now();
+                const offlineDebug = () => ({
+                    reader: 'Offline (on phone)',
+                    why: aiFailReason ? `AI failed: ${aiFailReason}` : (state.openAiKey ? '' : 'No OpenAI key saved'),
+                    ms: Math.round(performance.now() - offlineStart),
+                    imageSize: `${canvas.width}×${canvas.height}px`
+                });
                 dom.ocrLoadingOverlay.classList.remove('hidden');
                 dom.ocrProgressText.textContent = 'Bridging 7-segment LCD bars & stretching contrast...';
                 dom.ocrProgressBar.style.width = '18%';
@@ -1949,6 +2037,7 @@ Rules:
                     }
 
                     dom.ocrLoadingOverlay.classList.add('hidden');
+                    state.lastDebug = offlineDebug();
                     openVerificationModal(parsed, thumbDataUrl, processedThumbUrl, text, canvas, isReRun);
                 } catch (err) {
                     console.error('OCR Error:', err);
@@ -1967,6 +2056,7 @@ Rules:
                         ocrFailed: true,
                         suggestedAppliance
                     };
+                    state.lastDebug = { ...offlineDebug(), error: err.message || String(err) };
                     openVerificationModal(fallbackParsed, thumbDataUrl, thumbDataUrl, '[OCR Fallback Mode]', canvas, isReRun);
                 }
             }
@@ -2497,6 +2587,75 @@ Rules:
             /* =====================================================================
              * 6. VERIFICATION & ASSET TAGGING MODAL
              * ===================================================================== */
+            /** Fills the debug panel on the check screen (hidden unless Debug is on and a read just ran) */
+            function renderDebugPanel(d, rawText) {
+                if (!state.debug || !d) {
+                    dom.debugPanel.classList.add('hidden');
+                    return;
+                }
+                const rows = [['Reader', d.reader]];
+                if (d.why) rows.push(['Why', d.why]);
+                if (d.model) rows.push(['Model', d.model]);
+                rows.push(['Time', `${(d.ms / 1000).toFixed(1)} s`]);
+                rows.push(['Image', d.imageKb ? `${d.imageSize}, ${d.imageKb} KB` : d.imageSize]);
+                if (d.usage) {
+                    const inT = d.usage.prompt_tokens || 0, outT = d.usage.completion_tokens || 0;
+                    rows.push(['Tokens', `${inT} in, ${outT} out`]);
+                    const price = OPENAI_PRICES[d.model];
+                    if (price) {
+                        const usd = (inT * price[0] + outT * price[1]) / 1e6;
+                        rows.push(['Cost', `≈ $${usd.toFixed(4)} (≈ ${(usd * 100).toFixed(2)}¢)`]);
+                    }
+                }
+                if (d.error) rows.push(['Error', d.error]);
+                dom.debugInfo.innerHTML = '';
+                rows.forEach(([k, v]) => {
+                    const dt = document.createElement('dt');
+                    dt.className = 'font-bold text-slate-400';
+                    dt.textContent = k;
+                    const dd = document.createElement('dd');
+                    dd.className = 'font-mono text-slate-200 break-words';
+                    dd.textContent = v;
+                    dom.debugInfo.append(dt, dd);
+                });
+
+                dom.debugConfidence.innerHTML = '';
+                if (d.confidence) {
+                    const title = document.createElement('span');
+                    title.className = 'text-[10px] font-bold uppercase tracking-wider text-slate-400';
+                    title.textContent = "AI's confidence (its own guess)";
+                    const chips = document.createElement('div');
+                    chips.className = 'flex flex-wrap gap-1.5';
+                    const colours = { high: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50', medium: 'bg-amber-500/20 text-amber-300 border-amber-500/50', low: 'bg-red-500/20 text-red-300 border-red-500/50' };
+                    const names = { result: 'Result', test_type: 'Class', voltage: 'Voltage', earth: 'Earth', insulation: 'Insulation', polarity: 'Polarity' };
+                    Object.keys(names).forEach(k => {
+                        const level = d.confidence[k];
+                        if (!level) return;
+                        const chip = document.createElement('span');
+                        chip.className = `px-2 py-1 rounded-lg border text-xs font-bold ${colours[level] || ''}`;
+                        chip.textContent = `${names[k]}: ${level}`;
+                        chips.append(chip);
+                    });
+                    dom.debugConfidence.append(title, chips);
+                    if (d.notes) {
+                        const note = document.createElement('p');
+                        note.className = 'text-xs text-amber-200';
+                        note.textContent = d.notes;
+                        dom.debugConfidence.append(note);
+                    }
+                } else if (d.reader === 'AI') {
+                    const p = document.createElement('p');
+                    p.className = 'text-xs text-slate-500';
+                    p.textContent = 'No confidence for this read.';
+                    dom.debugConfidence.append(p);
+                }
+
+                dom.debugImageWrap.classList.toggle('hidden', !d.imageUrl);
+                dom.debugImage.src = d.imageUrl || '';
+                dom.debugRaw.textContent = rawText || '(none)';
+                dom.debugPanel.classList.remove('hidden');
+            }
+
             function openVerificationModal(parsed, thumbDataUrl, processedThumbUrl, rawOcrText, sourceCanvas = null, preserveUserMeta = false) {
                 state.currentDraft = {
                     sourceCanvas: sourceCanvas || state.currentDraft.sourceCanvas,
@@ -2512,6 +2671,8 @@ Rules:
                 dom.processedThumbnail.src = processedThumbUrl || thumbDataUrl || 'https://placehold.co/320x240/ffffff/0f172a?text=OCR+VIEW';
                 dom.rawOcrPreview.textContent = rawOcrText || 'No raw text available';
                 dom.rawOcrPreview.classList.add('hidden');
+                renderDebugPanel(state.lastDebug, rawOcrText);
+                state.lastDebug = null; // an edit opened later must not show this read's details
 
                 // Sync OCR tuning controls UI
                 dom.inputOcrBias.value = state.ocrBias;
@@ -3194,6 +3355,7 @@ Rules:
                 // AI reading settings
                 dom.btnSaveAiSettings.addEventListener('click', saveAiSettings);
                 dom.btnClearAiSettings.addEventListener('click', clearAiSettings);
+                dom.btnToggleDebug.addEventListener('click', toggleDebug);
 
                 // Quick Batch Location Modal
                 dom.btnQuickSetLocation.addEventListener('click', () => {
