@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <!-- QR codes on printed labels (each label carries its own full result) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Google Fonts: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -190,6 +191,20 @@
                     </select>
                 </div>
 
+            <!-- Google Sheet sync -->
+            <div class="sm:col-span-2 bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2.5">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Google Sheet backup</span>
+                <p id="gsyncStatusText" class="text-sm font-bold text-white">Off</p>
+                <label for="inputGoogleClientId" class="text-[11px] font-bold uppercase text-slate-400">Google OAuth client ID</label>
+                <input id="inputGoogleClientId" type="text" autocomplete="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com" class="w-full px-3.5 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-yellow-400 focus:outline-none font-mono text-white text-sm">
+                <div class="flex flex-wrap gap-2">
+                    <button id="btnGoogleConnect" type="button" class="flex-1 min-w-[140px] py-3 rounded-xl bg-yellow-400 text-slate-950 text-sm font-extrabold">Sign in &amp; sync</button>
+                    <a id="linkGoogleSheet" href="#" target="_blank" rel="noopener" class="hidden flex-1 min-w-[140px] py-3 rounded-xl bg-slate-800 text-emerald-300 border border-slate-700 text-sm font-bold text-center">Open Sheet</a>
+                    <button id="btnGoogleDisconnect" type="button" class="hidden px-4 py-3 rounded-xl bg-slate-800 text-red-400 border border-slate-700 text-sm font-bold">Disconnect</button>
+                </div>
+                <p class="text-[11px] text-slate-500">Results save on this phone first, then copy to a Google Sheet ("PAT Snap 550 Register", photos in a Drive folder) when online. Edit and delete results in the app; edits made in the Sheet are copied back. Disconnecting leaves the Sheet as it is.</p>
+            </div>
+
             <!-- AI screen reading (OpenAI) settings -->
             <div class="sm:col-span-2 bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2.5">
                 <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">AI screen reading (OpenAI)</span>
@@ -260,6 +275,7 @@
                     </svg>
                     Print / PDF Report
                 </button>
+                <button id="btnSyncPill" type="button" class="hidden py-2.5 px-3 rounded-xl bg-slate-900 text-slate-300 border border-slate-800 font-semibold text-xs transition">☁ Sync</button>
                 <button id="btnClearAllTrigger" type="button" class="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-red-950/60 text-red-400 border border-slate-800 hover:border-red-500/40 font-semibold text-xs transition">
                     Clear All
                 </button>
@@ -742,6 +758,12 @@
                 btnExportCsv: document.getElementById('btnExportCsv'),
                 btnPrintReport: document.getElementById('btnPrintReport'),
                 btnClearAllTrigger: document.getElementById('btnClearAllTrigger'),
+                gsyncStatusText: document.getElementById('gsyncStatusText'),
+                inputGoogleClientId: document.getElementById('inputGoogleClientId'),
+                btnGoogleConnect: document.getElementById('btnGoogleConnect'),
+                btnGoogleDisconnect: document.getElementById('btnGoogleDisconnect'),
+                linkGoogleSheet: document.getElementById('linkGoogleSheet'),
+                btnSyncPill: document.getElementById('btnSyncPill'),
                 searchRecordsInput: document.getElementById('searchRecordsInput'),
                 recordsListContainer: document.getElementById('recordsListContainer'),
                 verifyModal: document.getElementById('verifyModal'),
@@ -868,7 +890,7 @@
                 renderRecordsLog();
                 bindEvents();
                 startCamera();
-                initPhotoStorage();
+                initPhotoStorage().finally(initGoogleSync);
             }
 
             /** Shows whether AI reading is on, on the landing page and in More options */
@@ -2999,8 +3021,9 @@ Also rate how sure you are of each item: "high" (clearly readable), "medium" (re
                 // Editing an old result: update it in place (keeps its original date and photo)
                 if (state.editingRecordId) {
                     const idx = state.records.findIndex(r => r.id === state.editingRecordId);
-                    if (idx >= 0) state.records[idx] = { ...state.records[idx], ...fields };
+                    if (idx >= 0) state.records[idx] = { ...state.records[idx], ...fields, updatedAt: new Date().toISOString() };
                     saveToStorage();
+                    scheduleSync();
                     if (state.printAfterSave && idx >= 0) printRecordLabel(state.records[idx]);
                     state.printAfterSave = false;
                     updateAssetIdIndicators();
@@ -3021,11 +3044,13 @@ Also rate how sure you are of each item: "high" (clearly readable), "medium" (re
                     formattedDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
                     formattedTime: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
                     ...fields,
-                    photo: state.currentDraft.imageDataUrl
+                    photo: state.currentDraft.imageDataUrl,
+                    updatedAt: now.toISOString()
                 };
 
                 state.records.unshift(record);
                 saveToStorage();
+                scheduleSync();
                 if (state.photoStore === 'idb' && record.photo) {
                     savePhoto(record.id, record.photo).then(checkStorageSpace).catch(err => {
                         console.warn('Photo save failed:', err);
@@ -3465,6 +3490,7 @@ Also rate how sure you are of each item: "high" (clearly readable), "medium" (re
                             () => {
                                 state.records = state.records.filter(r => r.id !== id);
                                 saveToStorage();
+                                queueSheetDelete(record);
                                 if (state.photoStore === 'idb') deletePhoto(id).catch(err => console.warn('Photo delete failed:', err));
                                 updateAssetIdIndicators();
                                 renderRecordsLog();
@@ -3488,8 +3514,11 @@ Also rate how sure you are of each item: "high" (clearly readable), "medium" (re
                     }
                     showConfirmDialog(
                         'Clear All PAT Records?',
-                        `This will permanently delete all ${state.records.length} logged test records from this device.`,
+                        gsync.cfg.spreadsheetId
+                            ? `This deletes all ${state.records.length} results from this phone and disconnects Google sync. Your Google Sheet keeps them.`
+                            : `This will permanently delete all ${state.records.length} logged test records from this device.`,
                         () => {
+                            if (gsync.cfg.spreadsheetId) disconnectGoogle(true);
                             state.records = [];
                             saveToStorage();
                             if (state.photoStore === 'idb') clearPhotos().catch(err => console.warn('Photo clear failed:', err));
@@ -3499,6 +3528,348 @@ Also rate how sure you are of each item: "high" (clearly readable), "medium" (re
                         }
                     );
                 });
+            }
+
+
+            /* =====================================================================
+             * GOOGLE SHEET SYNC (Google Identity Services token + Drive/Sheets REST)
+             * Records save locally first. A sync pushes new/edited results (and their
+             * photos) to the "Register" tab, pulls rows that were edited in the Sheet or
+             * added from another phone, and removes rows deleted in the app.
+             * ===================================================================== */
+            const GSYNC_KEYS = { clientId: 'pat_snap_550_gclient_id_v1', cfg: 'pat_snap_550_gsync_v1', token: 'pat_snap_550_gtoken_v1', deleted: 'pat_snap_550_gdeleted_v1', last: 'pat_snap_550_glast_v1' };
+            const GSYNC_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+            const GSHEET_NAME = 'PAT Snap 550 Register';
+            const GSHEET_TAB = 'Register';
+            const GSHEET_HEADER = ['Record ID', 'Date', 'Time', 'Asset ID', 'Appliance', 'Location', 'Class', 'Visual', 'Earth (Ω)', 'Insulation (MΩ)', 'Voltage', 'Polarity', 'Result', 'Notes', 'Tested By', 'Instrument Serial', 'Photo', 'Timestamp', 'Updated'];
+            // Record fields for columns B–P (in order); these are compared to spot edits made in the Sheet
+            const GSHEET_FIELDS = ['formattedDate', 'formattedTime', 'assetId', 'appliance', 'location', 'testType', 'visualCheck', 'earth', 'insulation', 'voltage', 'polarity', 'status', 'notes', 'testedBy', 'testerSerial'];
+
+            const gsync = { clientId: '', cfg: {}, token: null, deleted: [], lastSync: '', busy: false, again: false, timer: null, tokenClient: null, error: '' };
+
+            function gsyncLoad() {
+                try {
+                    gsync.clientId = localStorage.getItem(GSYNC_KEYS.clientId) || '';
+                    gsync.cfg = JSON.parse(localStorage.getItem(GSYNC_KEYS.cfg) || '{}');
+                    gsync.token = JSON.parse(localStorage.getItem(GSYNC_KEYS.token) || 'null');
+                    gsync.deleted = JSON.parse(localStorage.getItem(GSYNC_KEYS.deleted) || '[]');
+                    gsync.lastSync = localStorage.getItem(GSYNC_KEYS.last) || '';
+                } catch (e) { /* start fresh */ }
+            }
+            function gsyncSave() {
+                try {
+                    localStorage.setItem(GSYNC_KEYS.clientId, gsync.clientId);
+                    localStorage.setItem(GSYNC_KEYS.cfg, JSON.stringify(gsync.cfg));
+                    localStorage.setItem(GSYNC_KEYS.token, JSON.stringify(gsync.token));
+                    localStorage.setItem(GSYNC_KEYS.deleted, JSON.stringify(gsync.deleted));
+                    localStorage.setItem(GSYNC_KEYS.last, gsync.lastSync);
+                } catch (e) { /* storage full: settings last for this session */ }
+            }
+
+            function tokenValid() {
+                return !!(gsync.token && gsync.token.value && gsync.token.expiresAt > Date.now() + 60000);
+            }
+            const recordDirty = r => !r.syncedAt || (r.updatedAt || r.timestamp) > r.syncedAt || (r.photo && !r.photoFileId);
+            const pendingCount = () => state.records.filter(recordDirty).length + gsync.deleted.length;
+
+            function updateSyncUI() {
+                const connected = !!gsync.cfg.spreadsheetId;
+                let text = 'Off';
+                let cls = 'text-sm font-bold text-white';
+                if (gsync.busy) { text = 'Syncing…'; cls = 'text-sm font-bold text-sky-300'; }
+                else if (gsync.error) { text = gsync.error; cls = 'text-sm font-bold text-red-400'; }
+                else if (connected) {
+                    const n = pendingCount();
+                    const when = gsync.lastSync ? new Date(gsync.lastSync).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'never';
+                    if (!tokenValid()) { text = `Signed out — ${n} waiting. Tap Sign in & sync.`; cls = 'text-sm font-bold text-amber-300'; }
+                    else { text = n ? `${n} waiting to sync (last ${when})` : `Synced ${when}`; cls = n ? 'text-sm font-bold text-amber-300' : 'text-sm font-bold text-emerald-400'; }
+                }
+                dom.gsyncStatusText.textContent = text;
+                dom.gsyncStatusText.className = cls;
+                if (document.activeElement !== dom.inputGoogleClientId) dom.inputGoogleClientId.value = gsync.clientId;
+                dom.btnGoogleConnect.textContent = connected ? 'Sync now' : 'Sign in & sync';
+                dom.btnGoogleDisconnect.classList.toggle('hidden', !connected);
+                dom.linkGoogleSheet.classList.toggle('hidden', !connected);
+                if (connected) dom.linkGoogleSheet.href = `https://docs.google.com/spreadsheets/d/${gsync.cfg.spreadsheetId}/edit`;
+
+                dom.btnSyncPill.classList.toggle('hidden', !connected);
+                if (connected) {
+                    const n = pendingCount();
+                    dom.btnSyncPill.textContent = gsync.busy ? '☁ Syncing…' : gsync.error ? '☁ Sync failed' : !tokenValid() ? `☁ Sign in (${n})` : n ? `☁ ${n} to sync` : '☁ Synced';
+                    dom.btnSyncPill.className = 'py-2.5 px-3 rounded-xl bg-slate-900 border font-semibold text-xs transition ' +
+                        (gsync.error ? 'text-red-400 border-red-500/40' : (!tokenValid() || n) ? 'text-amber-300 border-amber-500/40' : 'text-emerald-400 border-slate-800');
+                }
+            }
+
+            /** Gets an access token. Interactive (a tap) may show Google's sign-in popup. */
+            function getGoogleToken(interactive) {
+                if (tokenValid()) return Promise.resolve(gsync.token.value);
+                if (!interactive) return Promise.reject(new Error('signin'));
+                if (!window.google || !google.accounts || !google.accounts.oauth2) return Promise.reject(new Error('Google sign-in did not load (no signal?)'));
+                return new Promise((resolve, reject) => {
+                    gsync.tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: gsync.clientId,
+                        scope: GSYNC_SCOPE,
+                        callback: resp => {
+                            if (resp.error) return reject(new Error(resp.error_description || resp.error));
+                            gsync.token = { value: resp.access_token, expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000 };
+                            gsyncSave();
+                            resolve(resp.access_token);
+                        },
+                        error_callback: err => reject(new Error(err && err.type === 'popup_closed' ? 'Sign-in closed' : (err && err.message) || 'Sign-in failed'))
+                    });
+                    gsync.tokenClient.requestAccessToken({ prompt: gsync.cfg.spreadsheetId ? '' : 'consent' });
+                });
+            }
+
+            async function gapi(url, opts = {}) {
+                const res = await fetch(url, { ...opts, headers: { Authorization: `Bearer ${gsync.token.value}`, ...(opts.headers || {}) } });
+                if (res.status === 401) {
+                    gsync.token = null;
+                    gsyncSave();
+                    throw new Error('signin');
+                }
+                if (!res.ok) {
+                    const body = await res.json().catch(() => ({}));
+                    const err = new Error((body.error && body.error.message) || `Google error ${res.status}`);
+                    err.status = res.status;
+                    throw err;
+                }
+                return res;
+            }
+            const gjson = (url, method, body) => gapi(url, {
+                method: method || 'GET',
+                headers: body ? { 'Content-Type': 'application/json' } : {},
+                body: body ? JSON.stringify(body) : undefined
+            }).then(r => r.json());
+
+            async function driveFind(name, mimeType, parentId) {
+                const q = [`name='${name.replace(/'/g, "\\'")}'`, `mimeType='${mimeType}'`, 'trashed=false'];
+                if (parentId) q.push(`'${parentId}' in parents`);
+                const res = await gjson(`https://www.googleapis.com/drive/v3/files?fields=files(id)&q=${encodeURIComponent(q.join(' and '))}`);
+                return res.files && res.files[0] ? res.files[0].id : '';
+            }
+            async function driveCreate(name, mimeType, parentId) {
+                const res = await gjson('https://www.googleapis.com/drive/v3/files?fields=id', 'POST', { name, mimeType, parents: parentId ? [parentId] : undefined });
+                return res.id;
+            }
+
+            /** Finds (another phone may have made them) or creates the folder, photos folder and Sheet */
+            async function ensureSheet() {
+                if (gsync.cfg.spreadsheetId && gsync.cfg.sheetGid !== undefined && gsync.cfg.photosFolderId) return;
+                const FOLDER = 'application/vnd.google-apps.folder';
+                const SHEET = 'application/vnd.google-apps.spreadsheet';
+                const folderId = await driveFind('PAT Snap 550', FOLDER) || await driveCreate('PAT Snap 550', FOLDER);
+                const photosFolderId = await driveFind('Photos', FOLDER, folderId) || await driveCreate('Photos', FOLDER, folderId);
+                let spreadsheetId = await driveFind(GSHEET_NAME, SHEET);
+                const isNew = !spreadsheetId;
+                if (isNew) spreadsheetId = await driveCreate(GSHEET_NAME, SHEET, folderId);
+                const meta = await gjson(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties(sheetId,title)`);
+                let tab = meta.sheets.find(sh => sh.properties.title === GSHEET_TAB) || meta.sheets[0];
+                const sheetGid = tab.properties.sheetId;
+                if (isNew || tab.properties.title !== GSHEET_TAB) {
+                    await gjson(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, 'POST', { requests: [
+                        { updateSheetProperties: { properties: { sheetId: sheetGid, title: GSHEET_TAB, gridProperties: { frozenRowCount: 1 } }, fields: 'title,gridProperties.frozenRowCount' } },
+                        { repeatCell: { range: { sheetId: sheetGid, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: 'userEnteredFormat.textFormat.bold' } }
+                    ] });
+                    await gjson(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${GSHEET_TAB}!A1:S1?valueInputOption=RAW`, 'PUT', { values: [GSHEET_HEADER] });
+                }
+                gsync.cfg = { spreadsheetId, sheetGid, folderId, photosFolderId };
+                gsyncSave();
+            }
+
+            const photoUrl = id => id ? `https://drive.google.com/file/d/${id}/view` : '';
+            const photoIdFromUrl = url => { const m = String(url || '').match(/\/d\/([^/?]+)/); return m ? m[1] : ''; };
+
+            function recordToRow(r) {
+                return [r.id, ...GSHEET_FIELDS.map(f => r[f] == null ? '' : String(r[f])), photoUrl(r.photoFileId), r.timestamp || '', r.updatedAt || r.timestamp || ''];
+            }
+            function rowToFields(row) {
+                const out = {};
+                GSHEET_FIELDS.forEach((f, i) => { out[f] = row[i + 1] == null ? '' : String(row[i + 1]); });
+                return out;
+            }
+            function rowDiffers(row, r) {
+                return GSHEET_FIELDS.some((f, i) => String(row[i + 1] == null ? '' : row[i + 1]) !== String(r[f] == null ? '' : r[f]));
+            }
+
+            async function uploadPhoto(r) {
+                const blob = await (await fetch(r.photo)).blob();
+                const meta = { name: `${r.assetId || 'result'} ${(r.formattedDate || '').replace(/\//g, '-')} ${r.id}.jpg`, parents: [gsync.cfg.photosFolderId], mimeType: blob.type || 'image/jpeg' };
+                const b = 'patsnap' + Date.now();
+                const body = new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: ${meta.mimeType}\r\n\r\n`, blob, `\r\n--${b}--`]);
+                const res = await gapi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${b}` }, body });
+                return (await res.json()).id;
+            }
+            async function downloadPhoto(fileId) {
+                const blob = await (await gapi(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).blob();
+                return await new Promise((resolve, reject) => {
+                    const fr = new FileReader();
+                    fr.onload = () => resolve(fr.result);
+                    fr.onerror = reject;
+                    fr.readAsDataURL(blob);
+                });
+            }
+
+            async function runSync() {
+                await ensureSheet();
+                const { spreadsheetId, sheetGid } = gsync.cfg;
+                const base = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+
+                // 1. Upload photos that aren't in Drive yet
+                const uploaded = new Set();
+                for (const r of state.records) {
+                    if (r.photo && !r.photoFileId) {
+                        r.photoFileId = await uploadPhoto(r);
+                        uploaded.add(r.id);
+                        saveToStorage();
+                    }
+                }
+
+                // 2. Read the Sheet
+                const read = await gjson(`${base}/values/${GSHEET_TAB}!A2:S?valueRenderOption=UNFORMATTED_VALUE`);
+                const rows = read.values || [];
+                const byId = new Map();
+                rows.forEach((row, i) => { if (row[0]) byId.set(String(row[0]), { row, rowNum: i + 2 }); });
+
+                const updates = [], appends = [], pushed = [];
+                const deletedIds = new Set(gsync.deleted.map(d => d.id));
+                let pulled = 0;
+
+                // 3. Local results: push new/edited ones, take edits made in the Sheet
+                for (const r of [...state.records].reverse()) { // oldest first, so the Sheet reads in date order
+                    const hit = byId.get(r.id);
+                    const stamp = r.updatedAt || r.timestamp;
+                    if (!hit) {
+                        appends.push(recordToRow(r));
+                        pushed.push([r, stamp]);
+                    } else if (recordDirty(r) || uploaded.has(r.id)) {
+                        updates.push({ range: `${GSHEET_TAB}!A${hit.rowNum}:S${hit.rowNum}`, values: [recordToRow(r)] });
+                        pushed.push([r, stamp]);
+                    } else if (rowDiffers(hit.row, r)) {
+                        Object.assign(r, rowToFields(hit.row));
+                        pulled++;
+                    }
+                    byId.delete(r.id);
+                }
+
+                // 4. Rows not on this phone (another phone, or added before this phone was set up)
+                for (const [id, { row }] of byId) {
+                    if (deletedIds.has(id)) continue;
+                    const stamp = String(row[18] || row[17] || new Date().toISOString());
+                    state.records.push({ id, ...rowToFields(row), timestamp: String(row[17] || stamp), updatedAt: stamp, syncedAt: stamp, photoFileId: photoIdFromUrl(row[16]), photo: '' });
+                    pulled++;
+                }
+
+                // 5. Write: updates in place, then deletes (bottom up), then appends
+                if (updates.length) await gjson(`${base}/values:batchUpdate`, 'POST', { valueInputOption: 'RAW', data: updates });
+                const delRows = gsync.deleted.map(d => { const hit = rows.findIndex(row => String(row[0]) === d.id); return hit >= 0 ? hit + 2 : 0; }).filter(Boolean).sort((a, b) => b - a);
+                if (delRows.length) {
+                    await gjson(`${base}:batchUpdate`, 'POST', { requests: delRows.map(n => ({ deleteDimension: { range: { sheetId: sheetGid, dimension: 'ROWS', startIndex: n - 1, endIndex: n } } })) });
+                }
+                for (const d of gsync.deleted) {
+                    if (d.photoFileId) await gjson(`https://www.googleapis.com/drive/v3/files/${d.photoFileId}`, 'PATCH', { trashed: true }).catch(() => {});
+                }
+                gsync.deleted = [];
+                if (appends.length) await gjson(`${base}/values/${GSHEET_TAB}!A1:S1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, 'POST', { values: appends });
+                pushed.forEach(([r, stamp]) => { r.syncedAt = stamp; });
+
+                if (pulled) state.records.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+                saveToStorage();
+                gsync.lastSync = new Date().toISOString();
+                gsyncSave();
+                if (pulled) { updateAssetIdIndicators(); renderRecordsLog(); }
+
+                // 6. Fetch photos for results that came from the Sheet
+                for (const r of state.records) {
+                    if (r.photoFileId && !r.photo) {
+                        try {
+                            r.photo = await downloadPhoto(r.photoFileId);
+                            if (state.photoStore === 'idb') await savePhoto(r.id, r.photo);
+                        } catch (e) { console.warn('Photo download failed:', e); }
+                    }
+                }
+                if (pulled) { saveToStorage(); renderRecordsLog(); }
+                return { pushed: pushed.length, pulled };
+            }
+
+            /** Syncs now. interactive = from a tap, so it may show Google sign-in. */
+            async function syncNow(interactive = false) {
+                if (!gsync.clientId) { if (interactive) showToast('Paste your Google OAuth client ID first.', 'error'); return; }
+                if (gsync.busy) { gsync.again = true; return; }
+                try {
+                    await getGoogleToken(interactive);
+                } catch (e) {
+                    if (interactive && e.message !== 'signin') showToast(`Google sign-in: ${e.message}`, 'error');
+                    updateSyncUI();
+                    return;
+                }
+                if (!navigator.onLine) { updateSyncUI(); return; }
+                gsync.busy = true;
+                gsync.error = '';
+                updateSyncUI();
+                try {
+                    const { pushed, pulled } = await runSync();
+                    if (interactive) showToast(`Synced with Google Sheet${pushed || pulled ? ` (${pushed} sent, ${pulled} received)` : ''}.`, 'success');
+                } catch (e) {
+                    console.warn('Sync failed:', e);
+                    if (e.status === 404) { gsync.cfg = {}; gsyncSave(); }  // Sheet deleted: find or make a new one next time
+                    gsync.error = e.message === 'signin' ? '' : `Sync failed: ${e.message}`;
+                    if (interactive && gsync.error) showToast(gsync.error, 'error');
+                } finally {
+                    gsync.busy = false;
+                    updateSyncUI();
+                    if (gsync.again) { gsync.again = false; scheduleSync(); }
+                }
+            }
+
+            /** Sync soon after a change (only if signed in — never pops up sign-in by itself) */
+            function scheduleSync() {
+                updateSyncUI();
+                if (!gsync.cfg.spreadsheetId) return;
+                clearTimeout(gsync.timer);
+                gsync.timer = setTimeout(() => syncNow(false), 1500);
+            }
+
+            function queueSheetDelete(record) {
+                if (!gsync.cfg.spreadsheetId) return;
+                gsync.deleted.push({ id: record.id, photoFileId: record.photoFileId || '' });
+                gsyncSave();
+                scheduleSync();
+            }
+
+            function disconnectGoogle(silent = false) {
+                if (gsync.token && window.google && google.accounts && google.accounts.oauth2) {
+                    try { google.accounts.oauth2.revoke(gsync.token.value, () => {}); } catch (e) { /* ignore */ }
+                }
+                gsync.cfg = {};
+                gsync.token = null;
+                gsync.deleted = [];
+                gsync.lastSync = '';
+                gsync.error = '';
+                state.records.forEach(r => { delete r.syncedAt; delete r.photoFileId; });
+                saveToStorage();
+                gsyncSave();
+                updateSyncUI();
+                if (!silent) showToast('Disconnected. Your Google Sheet is unchanged.', 'info');
+            }
+
+            function initGoogleSync() {
+                gsyncLoad();
+                dom.btnGoogleConnect.addEventListener('click', () => {
+                    const id = dom.inputGoogleClientId.value.trim();
+                    if (id) gsync.clientId = id;
+                    gsyncSave();
+                    syncNow(true);
+                });
+                dom.btnSyncPill.addEventListener('click', () => syncNow(true));
+                dom.btnGoogleDisconnect.addEventListener('click', () => {
+                    showConfirmDialog('Disconnect Google Sheet?', 'Results stay on this phone and in the Sheet, but stop syncing.', () => disconnectGoogle());
+                });
+                window.addEventListener('online', () => scheduleSync());
+                document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(); });
+                updateSyncUI();
+                scheduleSync();
             }
 
             // Boot App on DOM Ready
