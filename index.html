@@ -1776,28 +1776,18 @@ Also rate how sure you are of each item: "high" (clearly readable), "medium" (re
             }
 
             /**
-             * Smaller image for the AI reader: crops to the screen with a generous margin (so
-             * nothing at the edge is lost) and scales to at most 800px (1024px if no screen was
-             * found). Much smaller upload and fewer image tokens, so the read is faster.
+             * Smaller image for the AI reader: the whole photo scaled to at most 1024px, for a
+             * smaller upload and fewer image tokens. Not cropped: cropping to the white screen
+             * cut off the voltage ("250V"/"500V") at the top of the screen.
              */
             function aiImageFor(canvas) {
-                const box = findScreenBox(canvas);
-                let sx = 0, sy = 0, sw = canvas.width, sh = canvas.height, maxDim = 1024;
-                if (box) {
-                    const padX = Math.round(box.cw * 0.12), padY = Math.round(box.ch * 0.12);
-                    sx = Math.max(0, box.cx - padX);
-                    sy = Math.max(0, box.cy - padY);
-                    sw = Math.min(canvas.width - sx, box.cw + 2 * padX);
-                    sh = Math.min(canvas.height - sy, box.ch + 2 * padY);
-                    maxDim = 800;
-                }
-                const r = Math.min(1, maxDim / Math.max(sw, sh));
+                const r = Math.min(1, 1024 / Math.max(canvas.width, canvas.height));
                 const out = document.createElement('canvas');
-                out.width = Math.round(sw * r);
-                out.height = Math.round(sh * r);
+                out.width = Math.round(canvas.width * r);
+                out.height = Math.round(canvas.height * r);
                 const ctx = out.getContext('2d');
                 ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, out.width, out.height);
+                ctx.drawImage(canvas, 0, 0, out.width, out.height);
                 return out;
             }
 
